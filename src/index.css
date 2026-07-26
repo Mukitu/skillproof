@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --robi-primary: #ED1C24;
+    --robi-secondary: #F58220;
+    --robi-accent: #FFB000;
+    --robi-deep: #B5121B;
+    --robi-pink: #E2136E;
+    --bg-light: #FFF8F6;
+  }
+
+  body {
+    background-color: #FFF8F6;
+    color: #1a1a1a;
+  }
+}
+
+.bg-robi-gradient {
+  background: linear-gradient(135deg, #ED1C24 0%, #F58220 50%, #FFB000 100%);
+}
+
+.text-robi-gradient {
+  background: linear-gradient(135deg, #ED1C24 0%, #F58220 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.border-robi-gradient {
+  border-image: linear-gradient(90deg, #ED1C24, #F58220, #FFB000) 1;
+}
+
+.bg-robi {
+  background-color: #ED1C24;
+}
+
+.bg-robi-orange {
+  background-color: #F58220;
+}
+
+.bg-robi-gold {
+  background-color: #FFB000;
+}
+
+.text-robi {
+  color: #ED1C24;
+}
+
+.border-robi {
+  border-color: #ED1C24;
+}
+
+.hover\:bg-robi:hover {
+  background-color: #d1151c;
+}
+
+.selection\:bg-robi::selection {
+  background-color: #ED1C24;
+  color: #ffffff;
+}
+
+/* Glass panel light style */
+.glass-panel-light {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(237, 28, 36, 0.12);
+}
+
+/* Custom glow animations for Robi theme */
+@keyframes robiPulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(237, 28, 36, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(245, 130, 32, 0.6);
+  }
+}
+
+.animate-robi-glow {
+  animation: robiPulse 3s infinite ease-in-out;
+}

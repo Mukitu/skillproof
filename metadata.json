@@ -1,0 +1,6 @@
+{
+  "name": "SkillProof",
+  "description": "Skill Verification and Career Development platform for Bangladesh",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
