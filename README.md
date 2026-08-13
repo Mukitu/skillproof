@@ -573,4 +573,4 @@ No `LICENSE` file is present in this repository at the time of writing. Until a 
 - **Public verification portal:** [https://skillproof.top/verify](https://skillproof.top/verify)
 - **Android APK:** [https://skillproof.top/SkillProof.apk?v=dev](https://skillproof.top/SkillProof.apk?v=dev)
 
-> Additional contact channels (support email, social links) are shown on the production site when available.
+> Additional contact channels (support email, social links) are shown on the production site when available .
