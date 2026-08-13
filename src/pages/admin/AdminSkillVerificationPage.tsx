@@ -1,18 +1,4 @@
-/**
- * Admin Universal Skill Verification Manager.
- *
- * Mirrors `AdminRoadmapTemplatesPage.tsx`:
- *   * List view with search + status filter.
- *   * TaskCard with category / sub-category badges and
- *     publish / edit / delete actions.
- *   * EditorView with the canonical SelectField / TextField / TextAreaField
- *     pattern and `whitespace-pre-line` description.
- *   * DeleteTaskModal with the same preflight + cascade confirmation as
- *     `DeleteRoadmapModal`. Never surfaces raw PostgreSQL errors.
- *
- * Marks per the spec are fixed: max=10, pass=6. These are surfaced as
- * read-only badges so admins understand the scoring rules.
- */
+
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import type { Key as ReactKey } from 'react';
 import {
@@ -136,14 +122,14 @@ export default function AdminSkillVerificationPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Skill Verification Manager</h1>
           <p className="text-sm text-slate-500">
             Create, edit and publish admin-authored skill verification tasks.
           </p>
         </div>
-        <div className="hidden items-center gap-2 sm:flex">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowJsonFormat(true)}
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -260,9 +246,9 @@ export default function AdminSkillVerificationPage() {
   );
 }
 
-// ============================================================================
-// TaskCard
-// ============================================================================
+
+
+
 function TaskCard({
   task: t, categories, subCategories, onEdit, onRefresh, saving,
 }: {
@@ -361,9 +347,9 @@ function TaskCard({
   );
 }
 
-// ============================================================================
-// DeleteTaskModal
-// ============================================================================
+
+
+
 function DeleteTaskModal({
   task,
   onClose,
@@ -538,9 +524,9 @@ function DeleteTaskModal({
   );
 }
 
-// ============================================================================
-// EditorView
-// ============================================================================
+
+
+
 function EditorView({
   mode, task, categories, subCategories, saving,
   onCancel, onSaved, onError, setSaving,
@@ -600,7 +586,7 @@ function EditorView({
     description.trim().length >= 10 &&
     submissionInstructions.trim().length >= 10;
 
-  const onChangeFile = (_e: ChangeEvent<HTMLInputElement>) => { /* no file uploads here */ };
+  const onChangeFile = (_e: ChangeEvent<HTMLInputElement>) => {  };
 
   const save = async () => {
     if (!canSave) {
@@ -622,11 +608,7 @@ function EditorView({
         : await adminUpdateSkillVerificationTask(savedId!, payload);
       setSavedId(saved.id);
       onError('');
-      if (mode === 'create') {
-        onSaved();
-      } else {
-        onSaved();
-      }
+      onSaved();
     } catch (e: any) {
       onError(e.message);
     } finally {
@@ -706,7 +688,7 @@ function EditorView({
             </div>
           </div>
 
-          {/* Hidden file input kept so a future thumbnail field is trivial to add. */}
+          {}
           <input type="file" className="hidden" onChange={onChangeFile} />
         </div>
 
@@ -725,9 +707,9 @@ function EditorView({
   );
 }
 
-// ============================================================================
-// Field components (shared with the roadmap page)
-// ============================================================================
+
+
+
 function SelectField({
   label, value, onChange, disabled, children,
 }: {
@@ -798,9 +780,9 @@ function TextAreaField({
   );
 }
 
-// ============================================================================
-// JSON Format modal (schema viewer + template copy)
-// ============================================================================
+
+
+
 function VerificationJsonFormatModal({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
 
@@ -904,9 +886,9 @@ function VerificationJsonFormatModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ============================================================================
-// JSON Import modal (category/subcategory header + validate + preview + import)
-// ============================================================================
+
+
+
 function VerificationJsonImportModal({
   categories, subCategories, existingTasks, onClose, onImported, onError,
 }: {

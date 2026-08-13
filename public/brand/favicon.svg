@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="fav-grad" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E31B23"/>
+      <stop offset="0.55" stop-color="#F97316"/>
+      <stop offset="1" stop-color="#FF8A00"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#fav-grad)"/>
+  <g transform="translate(41 14)">
+    <rect x="0" y="7" width="14" height="2.5" rx="1.25" fill="#ffffff" fill-opacity="0.92"/>
+    <rect x="6" y="1" width="2.5" height="14" rx="1.25" fill="#ffffff" fill-opacity="0.92"/>
+  </g>
+  <path
+    d="M16 36 L28 45 L48 25"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

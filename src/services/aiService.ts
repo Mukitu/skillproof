@@ -1,28 +1,37 @@
-/**
- * Legacy AI service shim. The new pipeline is server-side via BFF (server/routes/ai.ts).
- * These functions keep older pages compilable.
- */
-import { getAccessToken } from './auth';
-import { APP_URL } from '../lib/supabase';
+
+import { parseResume } from './aiCareer';
 
 export async function parseCVTextWithAI(
-  cvText: string,
+  _cvText: string,
   base64Data: string,
   fileName: string,
   mimeType: string
 ): Promise<any> {
-  const token = await getAccessToken();
-  const res = await fetch(`${APP_URL}/api/parse-cv`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ cvText, base64Data, fileName, mimeType }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || 'Failed to parse CV');
-  }
-  const body = await res.json();
-  return body.profile ?? body;
+  const blob = base64ToBlob(base64Data, mimeType);
+  const file = new File([blob], fileName, { type: mimeType });
+  const { profile, confidence } = await parseResume(file);
+  
+  
+  return {
+    ...profile,
+    name: profile.personal_information?.name,
+    email: profile.personal_information?.email,
+    phone: profile.personal_information?.phone,
+    location: profile.personal_information?.location,
+    bio: profile.personal_information?.bio,
+    github_url: profile.personal_information?.github_url,
+    linkedin_url: profile.personal_information?.linkedin_url,
+    portfolio_url: profile.personal_information?.portfolio_url,
+    confidence_json: confidence,
+    confidence_overall: confidence.overall,
+  };
+}
+
+function base64ToBlob(base64: string, mime: string): Blob {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
 }
 
 export function calculateCompleteness(profile: any): number {

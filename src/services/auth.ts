@@ -1,7 +1,6 @@
-/**
- * Auth service — Supabase auth wrappers.
- */
-import { supabase } from '../lib/supabase';
+
+import { supabase, getSupabase, SupabaseConfigurationError } from '../lib/supabase';
+import { normalizeAuthError, type NormalizedAuthError } from './authErrors';
 import type { Profile, UserRole } from '../types/database';
 
 export interface AuthUser {
@@ -9,78 +8,213 @@ export interface AuthUser {
   email: string;
 }
 
+const DEBUG_KEY = 'skillproof.auth.debug';
+function debugLog(...args: unknown[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (window.localStorage.getItem(DEBUG_KEY) === '1') {
+      
+      console.log('[skillproof:auth]', ...args);
+    }
+  } catch {
+    
+  }
+}
+
+function toNormalized(err: unknown, fallback: string): NormalizedAuthError {
+  
+  
+  
+  if (err instanceof SupabaseConfigurationError) {
+    return {
+      code: 'configuration_invalid',
+      message: err.message,
+      cause: err,
+      status: 0,
+    };
+  }
+  return normalizeAuthError(err, fallback);
+}
+
+function rethrow(err: unknown, fallback: string): never {
+  throw toNormalized(err, fallback);
+}
+
 export async function signUp(email: string, password: string, fullName: string) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { full_name: fullName } },
-  });
-  if (error) throw error;
-  return data;
+  debugLog('signUp start', { email });
+  
+  
+  try { getSupabase(); } catch (err) { rethrow(err, 'Sign-up failed'); }
+  try {
+    debugLog('signUp calling Supabase');
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName } },
+    });
+    if (error) {
+      debugLog('signUp error', { code: error.code, message: error.message, status: error.status });
+      rethrow(error, 'Sign-up failed');
+    }
+    debugLog('signUp result', { ok: true, hasSession: !!data.session, hasUser: !!data.user });
+    return data;
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && 'message' in err && 'cause' in err) {
+      throw err;
+    }
+    rethrow(err, 'Sign-up failed');
+  }
 }
 
 export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  return data;
+  const normalizedEmail = email.trim().toLowerCase();
+  debugLog('signIn start', { email: normalizedEmail });
+  try { getSupabase(); } catch (err) { rethrow(err, 'Sign-in failed'); }
+  try {
+    debugLog('signIn calling Supabase');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+    if (error) {
+      debugLog('signIn error', { code: error.code, message: error.message, status: error.status });
+      rethrow(error, 'Sign-in failed');
+    }
+    debugLog('signIn result', { ok: true, hasSession: !!data.session, hasUser: !!data.user });
+    return data;
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && 'message' in err && 'cause' in err) {
+      throw err;
+    }
+    rethrow(err, 'Sign-in failed');
+  }
 }
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  // Use `scope: 'local'` so we only clear THIS client's storage. Both
+  // the user and company clients share the same auth.users row, so a
+  // global sign-out would also kill the parallel Company session that
+  // belongs to a different portal. The full Navbar logout combines
+  // signOut() + the company's signOut() + clearLocalStorage().
+  // SECURITY HARDENING (Phase 1): also clear the company-side storage
+  // key (`skillproof.company.auth`) so a user-side sign-out does not
+  // leave a stale company-portal session on the same machine. If the
+  // caller is also actively signed in to the company portal under the
+  // same auth.users row, the unifiedAuth.unifiedSignOutAll() flow still
+  // remains available for the explicit "sign out everywhere" path.
+  try {
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) rethrow(error, 'Sign-out failed');
+  } catch (err) {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('skillproof.auth');
+        window.localStorage.removeItem('skillproof.company.auth');
+      }
+    } catch {}
+    rethrow(err, 'Sign-out failed');
+  }
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('skillproof.auth');
+      window.localStorage.removeItem('skillproof.company.auth');
+    }
+  } catch {}
 }
 
 export async function resetPassword(email: string) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
-  });
-  if (error) throw error;
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    const redirectTo =
+      typeof window !== 'undefined' && window.location?.origin
+        ? `${window.location.origin}/reset-password`
+        : undefined;
+    debugLog('resetPassword start', { email: normalizedEmail, redirectTo });
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
+    if (error) rethrow(error, 'Password reset failed');
+  } catch (err) {
+    rethrow(err, 'Password reset failed');
+  }
 }
 
 export async function updatePassword(newPassword: string) {
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) throw error;
+  try {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) rethrow(error, 'Password update failed');
+  } catch (err) {
+    rethrow(err, 'Password update failed');
+  }
+}
+
+
+export async function getAccessToken(opts: { forceRefresh?: boolean } = {}): Promise<string> {
+  let session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] | null = null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    session = data.session;
+  } catch (err) {
+    rethrow(err, 'Your session has expired. Please sign in again.');
+  }
+
+  const closeToExpiry =
+    !session ||
+    !session.expires_at ||
+    session.expires_at * 1000 - Date.now() < 60_000;
+
+  if (!session || opts.forceRefresh || closeToExpiry) {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error && data.session) session = data.session;
+    } catch {
+      
+    }
+    if (!session) {
+      throw normalizeAuthError(
+        new Error('session_expired'),
+        'Your session has expired. Please sign in again.',
+      );
+    }
+  }
+  if (!session.access_token) {
+    throw normalizeAuthError(
+      new Error('session_missing'),
+      'Your session has expired. Please sign in again.',
+    );
+  }
+  return session.access_token;
 }
 
 export async function getCurrentSession() {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-  return data.session;
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) rethrow(error, 'Unable to read session');
+    return data.session;
+  } catch (err) {
+    rethrow(err, 'Unable to read session');
+  }
 }
 
 export async function getCurrentUser() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  return data.user;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) rethrow(error, 'Unable to read user');
+    return data.user;
+  } catch (err) {
+    rethrow(err, 'Unable to read user');
+  }
 }
 
-export async function getAccessToken(opts: { forceRefresh?: boolean } = {}): Promise<string> {
-  // Read the live Supabase session directly. This is the SINGLE source of
-  // truth for the Bearer token. We never use the anon key, the refresh
-  // token, the service-role key, undefined or null.
-  let { data: { session } } = await supabase.auth.getSession();
 
-  // If session is missing OR the access_token is within 60s of expiry OR
-  // the caller explicitly asked, refresh from the Auth server.
-  const closeToExpiry = !session
-    || !session.expires_at
-    || session.expires_at * 1000 - Date.now() < 60_000;
-
-  if (!session || opts.forceRefresh || closeToExpiry) {
-    const { data, error } = await supabase.auth.refreshSession();
-    if (!error && data.session) {
-      session = data.session;
-    }
-    // If refresh failed AND we still have no session, the user is signed out.
-    if (!session) {
-      throw new Error('Your session has expired. Please sign in again.');
-    }
+export async function tryRecoverSession(): Promise<AuthUser | null> {
+  try {
+    const session = await getCurrentSession();
+    if (!session?.user) return null;
+    return { id: session.user.id, email: session.user.email ?? '' };
+  } catch (err) {
+    const norm = normalizeAuthError(err);
+    if (norm.code === 'session_expired' || norm.code === 'session_missing') return null;
+    return null;
   }
-
-  if (!session.access_token) {
-    throw new Error('Your session has expired. Please sign in again.');
-  }
-  return session.access_token;
 }
 
 export async function fetchProfile(userId: string): Promise<Profile | null> {
@@ -89,15 +223,11 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
     .select('*')
     .eq('user_id', userId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) rethrow(error, 'Unable to load profile');
   return (data as Profile) ?? null;
 }
 
 export async function ensureProfile(userId: string, email: string, fullName: string): Promise<Profile> {
-  // New accounts start with a completely empty profile. We intentionally do
-  // NOT seed demo data, fake names, default profession, or placeholder skills.
-  // Any real data only enters the profile once the user fills it in or
-  // successfully uploads a CV that the AI extraction can parse.
   const safeName = fullName && fullName.trim().length > 0 ? fullName : '';
   const { data, error } = await supabase
     .from('profiles')
@@ -124,25 +254,31 @@ export async function ensureProfile(userId: string, email: string, fullName: str
         portfolio_url: null,
         website_url: null,
       },
-      { onConflict: 'user_id' }
+      { onConflict: 'user_id' },
     )
     .select('*')
     .single();
-  if (error) throw error;
+  if (error) rethrow(error, 'Unable to create profile');
   return data as Profile;
 }
 
 export async function updateMyProfile(patch: Partial<Profile>): Promise<Profile> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Not authenticated');
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(patch)
-    .eq('user_id', user.id)
-    .select('*')
-    .single();
-  if (error) throw error;
-  return data as Profile;
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      throw normalizeAuthError(new Error('session_missing'), 'You are signed out.');
+    }
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(patch)
+      .eq('user_id', user.id)
+      .select('*')
+      .single();
+    if (error) rethrow(error, 'Profile update failed');
+    return data as Profile;
+  } catch (err) {
+    rethrow(err, 'Profile update failed');
+  }
 }
 
 export function isAdmin(profile: Profile | null | undefined): boolean {

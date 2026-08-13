@@ -1,8 +1,4 @@
-/**
- * ActivityTimeline — vertical timeline of the current user's recent
- * activity_events. Each event renders with its icon, color, title,
- * description, and timestamp.
- */
+
 import { useState, type Key as ReactKey } from 'react';
 import { Activity, Award, BadgeCheck, Bell, Briefcase, Check, CheckCircle2, Download, Eye, FilePlus, FileText, Flag, Image as ImageIcon, Key, LogIn, Map, PlusCircle, RefreshCw, Send, Shield, Sparkles, User, UserPlus, X, XCircle } from 'lucide-react';
 import { ACTIVITY_PRESET, useMyActivity } from '../../services/activity';

@@ -1,24 +1,4 @@
-/**
- * Universal Skill Verification — user page.
- *
- * Fully admin-driven flow:
- *   1. User picks Category → Sub-category.
- *   2. We list every Published skill_verification_tasks row for that scope.
- *   3. The user opens one task, reads the description + submission
- *      instructions, types an answer (text box) and optional project URL,
- *      then submits. After review we show score / status / feedback.
- *
- * Resubmission rules mirror the server RPC:
- *   - If a row exists and is "Submitted" we update it in place.
- *   - If a row exists and is "Under Review" the submission is locked
- *     until the admin finishes the review.
- *   - If a row exists and is "Passed" or "Failed" the RPC clears the old
- *     row in the same transaction and inserts a new submission, allowing
- *     re-attempts after admin review.
- *
- * All data is fetched from Supabase via the skill_verification service.
- * There is no AI / Groq / hardcoded content anywhere in this page.
- */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle, CheckCircle2, ClipboardCheck, ExternalLink, Loader2, Lock, Send, Sparkles,
@@ -115,7 +95,7 @@ export const UniversalAssessmentPage = () => {
   useRealtimeRefresh('skill_verification_submissions', () => { void loadMine(); });
   useEffect(() => { void loadTasks(); }, [loadTasks]);
 
-  // Reset the form whenever the user switches tasks.
+  
   useEffect(() => {
     const existing = activeTask ? mySubmissionForTask(activeTask.id) : null;
     setAnswer(existing?.answer_text ?? '');
@@ -137,7 +117,7 @@ export const UniversalAssessmentPage = () => {
       setError('Please provide either a code/text answer or a project URL.');
       return;
     }
-    if (trimmedUrl && !/^https?:\/\//i.test(trimmedUrl)) {
+    if (trimmedUrl && !/^https?:\/\//.test(trimmedUrl)) {
       setError('Project URL must start with http:// or https://');
       return;
     }
@@ -160,24 +140,37 @@ export const UniversalAssessmentPage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Universal Skill Verification</h1>
-        <p className="text-sm text-gray-500">
-          Pick a category, choose an admin-published verification task, and submit your answer.
-        </p>
+      <div className="relative overflow-hidden rounded-brand-lg border border-brand-border bg-white px-5 sm:px-6 py-5 shadow-brand-sm">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1"
+          style={{
+            background:
+              'linear-gradient(90deg,#E31B23 0%,#F97316 55%,#FF8A00 100%)',
+          }}
+        />
+        <div className="pt-1">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-50 border border-red-100 text-[11px] font-bold uppercase tracking-wider text-[#E31B23]">
+            <Sparkles className="w-3 h-3" /> Skill Verification
+          </span>
+          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">Universal Skill Verification</h1>
+          <p className="mt-1 text-sm text-slate-500 break-words">
+            Pick a category, choose an admin-published verification task, and submit your answer.
+          </p>
+        </div>
       </div>
 
       {error && <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={18} className="shrink-0" />{error}</div>}
       {success && <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"><CheckCircle2 size={18} className="shrink-0" />{success}</div>}
 
-      <div className="flex gap-2 border-b">
-        <button onClick={() => setTab('verify')} className={`px-4 py-2 text-sm ${tab === 'verify' ? 'border-b-2 border-blue-600 font-medium text-blue-700' : 'text-gray-500'}`}>Verify your skill</button>
-        <button onClick={() => setTab('mine')} className={`px-4 py-2 text-sm ${tab === 'mine' ? 'border-b-2 border-blue-600 font-medium text-blue-700' : 'text-gray-500'}`}>My verifications ({mySubs.length})</button>
+      <div className="-mx-4 sm:mx-0 px-4 sm:px-0 flex items-center gap-2 border-b border-slate-200 overflow-x-auto overscroll-contain">
+        <button onClick={() => setTab('verify')} className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm font-semibold ${tab === 'verify' ? 'border-b-2 border-[#E31B23] text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Verify your skill</button>
+        <button onClick={() => setTab('mine')} className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm font-semibold ${tab === 'mine' ? 'border-b-2 border-[#E31B23] text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>My verifications ({mySubs.length})</button>
       </div>
 
       {tab === 'verify' ? (
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
             <h2 className="mb-4 flex items-center gap-2 font-semibold text-slate-900"><Sparkles size={18} className="text-blue-600" /> 1. Select category</h2>
             <div className="space-y-3">
               <select value={catId} onChange={(event) => { setCatId(event.target.value); setSubId(''); setActiveTask(null); }} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -218,7 +211,7 @@ export const UniversalAssessmentPage = () => {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
             {!activeTask ? (
               <div className="flex min-h-[360px] flex-col items-center justify-center text-center text-slate-400">
                 <ClipboardCheck size={48} className="text-slate-300" />
@@ -262,9 +255,9 @@ function TaskSubmissionPanel({ task, existing, answer, setAnswer, projectUrl, se
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">{task.title}</h2>
-          <p className="mt-1 text-xs text-slate-500">Max {task.max_marks} marks · Pass at {task.pass_marks}+</p>
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold text-slate-900 sm:text-xl break-words">{task.title}</h2>
+          <p className="mt-1 text-xs text-slate-500 break-words">Max {task.max_marks} marks · Pass at {task.pass_marks}+</p>
         </div>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${STATUS_CLASS[task.status]}`}>{task.status}</span>
       </div>
@@ -281,7 +274,11 @@ function TaskSubmissionPanel({ task, existing, answer, setAnswer, projectUrl, se
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
         <p className="font-semibold">নোট:</p>
-        <p>ছোট কোড হলে নিচের টেক্সট বক্সে লিখুন। বড় প্রজেক্ট হলে GitHub অথবা Google Drive লিংক জমা দিন।</p>
+        <p>
+          যেকোনো ক্যাটাগরিতে (কোড, পিডিএফ, এক্সেল, জিপ ইত্যাদি) জমা দিতে পারবেন। ছোট কোড বা টেক্সট হলে নিচের টেক্সট বক্সে লিখুন। বড় প্রজেক্ট বা ফাইল হলে
+          প্রথমে আপনার Google Drive-এ ফাইলটি আপলোড করে শেয়ার লিংক তৈরি করুন, তারপর সেই Google Drive লিংক অথবা GitHub রিপোজিটরি লিংক নিচের Project URL ফিল্ডে জমা দিন।
+          অন্তত একটি ফিল্ড (টেক্সট অথবা URL) পূরণ করা আবশ্যক।
+        </p>
       </div>
 
       {existing && (

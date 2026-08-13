@@ -1,28 +1,51 @@
-/**
- * Roadmap JSON format contract shared by the format viewer and import modal.
- *
- * This intentionally contains only placeholder values — no real roadmap
- * content. The validator mirrors fn_admin_import_roadmap_json in migration
- * 34 so invalid input is rejected before the RPC is called.
- */
+
 
 export const ROADMAP_JSON_TEMPLATE = `{
   "days": [
     {
       "day_number": 1,
-      "title": "Day title",
-      "description": "Full description. Plain text — multi-line supported.",
+      "title": "Introduction to HTML",
+      "description": "Learn the basics of HTML, including elements, attributes and document structure.",
       "estimated_minutes": 60,
-      "learning_objectives": ["Learning objective"],
-      "instructions": ["Step 1", "Step 2"],
-      "practice_tasks": ["Practice task"],
-      "notes": "Optional admin notes",
-      "video_title": "Lesson video title",
+      "learning_objectives": [
+        "Understand HTML document structure",
+        "Use common HTML tags"
+      ],
+      "instructions": [
+        "Open your code editor and create a new file called index.html",
+        "Add a basic HTML5 boilerplate",
+        "Create a heading and a paragraph"
+      ],
+      "practice_tasks": [
+        "Build a simple personal introduction page"
+      ],
+      "video_title": "HTML Crash Course",
       "video_url": "https://www.youtube.com/watch?v=VIDEO_ID",
       "video_provider": "youtube",
       "resources": [
-        { "label": "Resource label", "url": "https://example.com/resource", "description": "Optional description" }
-      ]
+        { "label": "MDN HTML Guide", "url": "https://developer.mozilla.org/en-US/docs/Web/HTML", "description": "Official HTML reference" }
+      ],
+      "notes": "Optional admin notes for this lesson.",
+      "mini_project": "Optional mini project title",
+      "assignment": "Optional assignment prompt"
+    },
+    {
+      "day_number": 2,
+      "title": "CSS Fundamentals",
+      "description": "Style your HTML pages with CSS selectors, the box model and basic layout.",
+      "estimated_minutes": 75,
+      "learning_objectives": [
+        "Apply CSS selectors",
+        "Understand the box model"
+      ],
+      "instructions": [
+        "Link a stylesheet to your HTML file",
+        "Style headings, paragraphs and lists"
+      ],
+      "practice_tasks": [
+        "Recreate a small landing page using only HTML and CSS"
+      ],
+      "resources": []
     }
   ]
 }`;
@@ -35,18 +58,20 @@ export interface RoadmapJsonField {
 }
 
 export const ROADMAP_JSON_FIELDS: RoadmapJsonField[] = [
-  { key: 'day_number', required: true, type: 'positive integer', notes: 'Unique day number within this import. Existing day numbers on the roadmap are also rejected by the server.' },
-  { key: 'title', required: true, type: 'string', notes: 'Non-empty day title.' },
+  { key: 'day_number', required: true, type: 'positive integer', notes: 'Unique day number within this import. Day numbers already on this roadmap are rejected by the server.' },
+  { key: 'title', required: true, type: 'string', notes: 'Non-empty day title (e.g. "Introduction to HTML").' },
   { key: 'description', required: false, type: 'string', notes: 'Full lesson description. Plain text, multi-line supported.' },
-  { key: 'estimated_minutes', required: false, type: 'integer', notes: 'Minimum 5 minutes. Defaults to 60 when omitted.' },
-  { key: 'learning_objectives', required: false, type: 'string[]', notes: 'What the user will learn from this day.' },
-  { key: 'instructions', required: false, type: 'string[]', notes: 'Step-by-step instructions shown in the lesson page.' },
-  { key: 'practice_tasks', required: false, type: 'string[]', notes: 'Hands-on practice tasks shown in the lesson page.' },
-  { key: 'notes', required: false, type: 'string', notes: 'Optional admin notes (rendered as plain text).' },
+  { key: 'estimated_minutes', required: false, type: 'integer', notes: 'Minimum 5 minutes. Defaults to 60 when omitted or 0.' },
+  { key: 'learning_objectives', required: false, type: 'string[]', notes: 'What the user will learn from this day. Empty strings are filtered out.' },
+  { key: 'instructions', required: false, type: 'string[]', notes: 'Step-by-step instructions shown in the lesson page. Empty strings are filtered out.' },
+  { key: 'practice_tasks', required: false, type: 'string[]', notes: 'Hands-on practice tasks shown in the lesson page. Empty strings are filtered out.' },
   { key: 'video_title', required: false, type: 'string', notes: 'Optional lesson video title shown above the embed.' },
-  { key: 'video_url', required: false, type: 'URL', notes: 'Either a YouTube watch URL or a ready-to-use embed URL.' },
-  { key: 'video_provider', required: false, type: '"youtube" | "embed"', notes: 'Required when video_url is set.' },
-  { key: 'resources', required: false, type: '{ label, url, description? }[]', notes: 'Optional array of external learning links.' },
+  { key: 'video_url', required: false, type: 'URL', notes: 'Either a YouTube watch URL or a ready-to-use embed URL. Required if video_provider is set.' },
+  { key: 'video_provider', required: false, type: '"youtube" | "embed"', notes: 'Required when video_url is set. Must be either "youtube" or "embed".' },
+  { key: 'resources', required: false, type: '{ label?, url?, description? }[]', notes: 'Optional array of external learning links. Each entry may include label, url and description.' },
+  { key: 'notes', required: false, type: 'string', notes: 'Optional admin notes for this lesson (rendered as plain text).' },
+  { key: 'mini_project', required: false, type: 'string', notes: 'Optional title for a mini-project associated with the day.' },
+  { key: 'assignment', required: false, type: 'string', notes: 'Optional assignment prompt for the learner.' },
 ];
 
 export interface RoadmapValidationRow {
@@ -154,7 +179,7 @@ function validateDay(day: any, seen: Set<number>, existingDayNumbers?: Set<numbe
   if (day.video_url && !day.video_provider) return 'video_provider is required when video_url is set.';
   if (!day.video_url && day.video_provider) return 'video_url is required when video_provider is set.';
 
-  for (const key of ['description', 'notes']) {
+  for (const key of ['description', 'notes', 'mini_project', 'assignment']) {
     if (day[key] !== undefined && day[key] !== null && typeof day[key] !== 'string') {
       return `${key} must be a string.`;
     }

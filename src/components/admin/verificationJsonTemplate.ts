@@ -1,11 +1,4 @@
-/**
- * Skill Verification — shared JSON template + client-side validator.
- *
- * The template constant and the validator live in the same module so the
- * "View JSON Format" modal can never drift from the validation rules used by
- * the import modal. The server RPC is the source of truth — these client-side
- * rules mirror the SQL CHECK constraints + RPC validation in migration 32.
- */
+
 
 export const DIFFICULTY_OPTIONS = ['Beginner', 'Intermediate', 'Advanced'] as const;
 export const ASSESSMENT_TYPE_OPTIONS = ['Coding', 'Project', 'Practical', 'Portfolio'] as const;
@@ -15,13 +8,35 @@ export const VERIFICATION_TASK_JSON_TEMPLATE = `{
   "tasks": [
     {
       "title": "Responsive Portfolio Website",
-      "description": "Build a fully responsive portfolio website.",
-      "submission_instructions": "Submit GitHub repository or Google Drive link.",
+      "description": "Build a fully responsive portfolio website with at least three sections: hero, projects and contact.",
+      "submission_instructions": "Submit your GitHub repository URL or a Google Drive link to the deployed site and source code.",
       "difficulty": "Beginner",
       "assessment_type": "Coding",
       "estimated_time": "2 hours",
       "max_marks": 10,
       "pass_marks": 6,
+      "status": "Published"
+    },
+    {
+      "title": "REST API with Node and Express",
+      "description": "Design and implement a small REST API using Node.js, Express and a relational database of your choice.",
+      "submission_instructions": "Provide a public GitHub repository URL and a short README describing the endpoints and how to run the project locally.",
+      "difficulty": "Intermediate",
+      "assessment_type": "Project",
+      "estimated_time": "6 hours",
+      "max_marks": 20,
+      "pass_marks": 12,
+      "status": "Draft"
+    },
+    {
+      "title": "UX Case Study Walkthrough",
+      "description": "Record a 5-minute screen capture walking through a UX case study you completed, explaining research, decisions and outcomes.",
+      "submission_instructions": "Upload the recording to Google Drive or YouTube (unlisted) and paste the link here. Also share a PDF export of the slides.",
+      "difficulty": "Advanced",
+      "assessment_type": "Portfolio",
+      "estimated_time": "1 week",
+      "max_marks": 30,
+      "pass_marks": 18,
       "status": "Published"
     }
   ]
@@ -60,7 +75,7 @@ export interface ValidationResult {
   validCount: number;
   invalidCount: number;
   rows: ValidationRowResult[];
-  /** When the JSON itself is malformed (cannot parse / wrong shape). */
+  
   parseError?: string;
 }
 
@@ -153,7 +168,7 @@ function validateRow(task: any): string | null {
     }
   }
 
-  // Length + business rules.
+  
   const title = (task.title || '').trim();
   if (title.length < 3 || title.length > 200) {
     return 'title must be 3..200 characters';

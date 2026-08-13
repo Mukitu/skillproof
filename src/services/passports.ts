@@ -1,20 +1,4 @@
-/**
- * Passport service — view, approve, reject, request, review, renew.
- *
- * Enterprise Skill Passport Core (migration 42) adds:
- *   - per-category eligibility check + listing
- *   - manual request with server-side dedup
- *   - admin review (approve / request_revisions / reject) with level
- *     auto-computation, signature + QR + 2-year expiry
- *   - admin level override with audit trail
- *   - user-driven renewal request + admin renewal decision
- *   - aggregated passport overview (joined payload for the admin review
- *     page's tabbed render)
- *   - active-passport helper for the dashboard
- *
- * Existing `approvePassport` / `rejectPassport` are kept as thin wrappers
- * that delegate to `adminReviewPassport` for backward compatibility.
- */
+
 import { supabase } from '../lib/supabase';
 import { getMyProfileId } from './profile';
 import { logActivity } from './activity';
@@ -23,9 +7,9 @@ import type {
   PassportOverviewJoined, PassportRenewalHistory, SkillPassport,
 } from '../types/database';
 
-// ---------------------------------------------------------------------------
-// Existing helpers (kept verbatim for backward compatibility)
-// ---------------------------------------------------------------------------
+
+
+
 
 export async function getMyPassports(): Promise<SkillPassport[]> {
   const profileId = await getMyProfileId();
@@ -68,9 +52,9 @@ export async function getPassportById(id: string): Promise<SkillPassport | null>
   return (data as SkillPassport) ?? null;
 }
 
-// ---------------------------------------------------------------------------
-// Legacy wrappers — delegate to fn_admin_review_passport (migration 42)
-// ---------------------------------------------------------------------------
+
+
+
 
 export async function approvePassport(id: string, feedback: string, digitalSignature: string): Promise<SkillPassport> {
   const result = await adminReviewPassport({
@@ -79,9 +63,9 @@ export async function approvePassport(id: string, feedback: string, digitalSigna
     feedback,
     decision: 'approve',
   });
-  // digitalSignature param is honored by the legacy contract but the new RPC
-  // computes its own signature server-side; we keep the parameter so callers
-  // don't have to change.
+  
+  
+  
   void digitalSignature;
   return result;
 }
@@ -95,25 +79,18 @@ export async function rejectPassport(id: string, reason: string): Promise<SkillP
   });
 }
 
-// ---------------------------------------------------------------------------
-// Enterprise eligibility + request flow
-// ---------------------------------------------------------------------------
 
-/**
- * Returns the per-category eligibility snapshot for the current user.
- * Used by the "Request Passport" card on the user passport page.
- */
+
+
+
+
 export async function listEligibleCategoriesForUser(): Promise<PassportCategoryEligibility[]> {
   const { data, error } = await supabase.rpc('fn_list_my_passport_eligibility');
   if (error) throw error;
   return (data as PassportCategoryEligibility[]) ?? [];
 }
 
-/**
- * Manual passport request for the given main category. Server enforces
- * dedup — re-requesting an existing pending_approval passport returns the
- * existing row instead of erroring.
- */
+
 export async function requestPassportManually(
   categoryId: string,
   motivation: string,
@@ -132,10 +109,7 @@ export async function requestPassportManually(
   return row;
 }
 
-/**
- * Eligibility check for one (user, category) pair. Returns the live count,
- * average, and is_eligible boolean.
- */
+
 export async function checkPassportEligibility(categoryId: string): Promise<{
   passed_count: number; average_marks: number; is_eligible: boolean;
 }> {
@@ -152,14 +126,14 @@ export async function checkPassportEligibility(categoryId: string): Promise<{
   };
 }
 
-// ---------------------------------------------------------------------------
-// Admin review (approve / request_revisions / reject)
-// ---------------------------------------------------------------------------
+
+
+
 
 export interface AdminReviewPassportParams {
   passportId: string;
-  overallScore: number;     // 0..100 (required)
-  feedback: string;         // required
+  overallScore: number;     
+  feedback: string;         
   decision: 'approve' | 'reject' | 'request_revisions';
 }
 
@@ -174,10 +148,7 @@ export async function adminReviewPassport(params: AdminReviewPassportParams): Pr
   return data as SkillPassport;
 }
 
-/**
- * Manual level override for an active passport. Writes a row to
- * `passport_level_history` (audit) and updates the passport.
- */
+
 export async function adminOverridePassportLevel(params: {
   passportId: string;
   newLevel: PassportLevel;
@@ -192,7 +163,7 @@ export async function adminOverridePassportLevel(params: {
   return data as SkillPassport;
 }
 
-/** Level-history audit rows for a passport (newest first). */
+
 export async function listPassportLevelHistory(passportId: string): Promise<PassportLevelHistory[]> {
   const { data, error } = await supabase
     .from('passport_level_history')
@@ -203,15 +174,11 @@ export async function listPassportLevelHistory(passportId: string): Promise<Pass
   return (data as PassportLevelHistory[]) ?? [];
 }
 
-// ---------------------------------------------------------------------------
-// Renewal flow
-// ---------------------------------------------------------------------------
 
-/**
- * User requests renewal of an active (or expired) passport.
- * Server inserts a row in passport_renewal_history with decision = NULL
- * and flips passports.renewal_status = 'requested'.
- */
+
+
+
+
 export async function requestPassportRenewal(
   passportId: string,
   notes: string,
@@ -224,14 +191,14 @@ export async function requestPassportRenewal(
   return data as PassportRenewalHistory;
 }
 
-/** All renewal requests for the current user (history). */
+
 export async function listMyPassportRenewals(): Promise<PassportRenewalHistory[]> {
   const { data, error } = await supabase.rpc('fn_user_list_my_passport_renewals');
   if (error) throw error;
   return (data as PassportRenewalHistory[]) ?? [];
 }
 
-/** Admin queue — every renewal row (optionally only pending). */
+
 export async function getAllPassportRenewals(pendingOnly = false): Promise<PassportRenewalHistory[]> {
   const { data, error } = await supabase.rpc('fn_admin_list_passport_renewals', {
     p_pending_only: pendingOnly,
@@ -240,7 +207,7 @@ export async function getAllPassportRenewals(pendingOnly = false): Promise<Passp
   return (data as PassportRenewalHistory[]) ?? [];
 }
 
-/** Admin decision on a renewal: 'renewed' (sets new expiry + active) or 'rejected'. */
+
 export async function adminReviewPassportRenewal(params: {
   renewalId: string;
   decision: 'renewed' | 'rejected';
@@ -255,15 +222,11 @@ export async function adminReviewPassportRenewal(params: {
   return data as PassportRenewalHistory;
 }
 
-// ---------------------------------------------------------------------------
-// Aggregated overview (admin review page)
-// ---------------------------------------------------------------------------
 
-/**
- * Single round-trip payload for the tabbed admin review page.
- * Joins passport + profile + AI career + educations + experiences +
- * user skills + verifications + level history + renewal history.
- */
+
+
+
+
 export async function getPassportOverview(passportId: string): Promise<PassportOverviewJoined | null> {
   const { data, error } = await supabase.rpc('fn_get_passport_overview', {
     p_passport_id: passportId,
@@ -272,14 +235,11 @@ export async function getPassportOverview(passportId: string): Promise<PassportO
   return (data as PassportOverviewJoined | null);
 }
 
-// ---------------------------------------------------------------------------
-// Dashboard helpers
-// ---------------------------------------------------------------------------
 
-/**
- * Returns the canonical "most relevant" passport for the dashboard card.
- * Priority: active (not expired) > pending_approval > most recent.
- */
+
+
+
+
 export async function getActivePassportForUser(): Promise<SkillPassport | null> {
   const all = await getMyPassports();
   if (!all.length) return null;
@@ -293,21 +253,108 @@ export async function getActivePassportForUser(): Promise<SkillPassport | null> 
   return all[0];
 }
 
-/**
- * True if the passport's expiry_date has passed. Pure helper so we don't
- * have to add a stored computed column on the schema.
- */
+
 export function isPassportExpired(p: SkillPassport): boolean {
   if (!p.expiry_date) return false;
   return new Date(p.expiry_date).getTime() < Date.now();
 }
 
-/**
- * Days until expiry_date (negative if expired). Returns null when there
- * is no expiry_date (e.g. legacy / pending_approval passports).
- */
+
 export function daysUntilPassportExpiry(p: SkillPassport): number | null {
   if (!p.expiry_date) return null;
   const diff = new Date(p.expiry_date).getTime() - Date.now();
   return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+
+
+
+
+export type PassportPrivacyKey =
+  | 'public_employer_view'
+  | 'show_assessment_history'
+  | 'show_ai_career_profile'
+  | 'show_evidence';
+
+export type PassportPrivacySettings = Record<PassportPrivacyKey, boolean>;
+
+const PRIVACY_DEFAULTS: PassportPrivacySettings = {
+  public_employer_view: true,
+  show_assessment_history: true,
+  show_ai_career_profile: true,
+  show_evidence: true,
+};
+
+
+export function normalizePassportPrivacy(
+  raw: Record<string, boolean> | null | undefined,
+): PassportPrivacySettings {
+  const out: PassportPrivacySettings = { ...PRIVACY_DEFAULTS };
+  if (!raw) return out;
+  for (const key of Object.keys(PRIVACY_DEFAULTS) as PassportPrivacyKey[]) {
+    const v = raw[key];
+    if (typeof v === 'boolean') out[key] = v;
+  }
+  return out;
+}
+
+
+export function isPublicEmployerViewEnabled(p: SkillPassport): boolean {
+  return normalizePassportPrivacy(p.privacy_settings).public_employer_view;
+}
+
+
+export async function updatePassportPrivacy(
+  patch: Partial<PassportPrivacySettings>,
+): Promise<PassportPrivacySettings> {
+  const payload: Record<string, boolean> = {};
+  for (const key of Object.keys(PRIVACY_DEFAULTS) as PassportPrivacyKey[]) {
+    if (patch[key] !== undefined) payload[key] = patch[key]!;
+  }
+  const { data, error } = await supabase.rpc('fn_update_passport_privacy', {
+    p_settings: payload,
+  });
+  if (error) throw error;
+  if (data && typeof data === 'object' && 'settings' in data) {
+    return normalizePassportPrivacy((data as { settings: Record<string, boolean> }).settings);
+  }
+  return normalizePassportPrivacy(payload);
+}
+
+
+
+
+
+import type { ProfilePublicEvidence, PublicEvidenceType } from '../types/database';
+
+export async function listMyPublicEvidence(): Promise<ProfilePublicEvidence[]> {
+  const { data, error } = await supabase
+    .from('profile_public_evidence')
+    .select('*')
+    .order('added_at', { ascending: false });
+  if (error) throw error;
+  return (data as ProfilePublicEvidence[]) ?? [];
+}
+
+export async function addPublicEvidence(
+  title: string,
+  url: string,
+  type: PublicEvidenceType = 'other',
+): Promise<ProfilePublicEvidence> {
+  if (!/^https?:\/\//.test(url)) throw new Error('url_must_start_with_http');
+  const { data, error } = await supabase
+    .from('profile_public_evidence')
+    .insert({ title: title.trim(), url, type })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as ProfilePublicEvidence;
+}
+
+export async function removePublicEvidence(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('profile_public_evidence')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
 }

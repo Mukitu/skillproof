@@ -1,11 +1,4 @@
-/**
- * Audit log service.
- *
- * Comprehensive, queryable, permanent audit trail. Audit rows are NEVER
- * deletable: RLS + an explicit DENY rule on the table make this guarantee.
- *
- * The fn_audit_log RPC captures actor + ip + browser from request context.
- */
+
 import { supabase } from '../lib/supabase';
 import type { AuditLog } from '../types/database';
 

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="SkillProof icon (dark surface)">
+  <defs>
+    <linearGradient id="sp-icon-grad-dark" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF3B47"/>
+      <stop offset="0.55" stop-color="#F97316"/>
+      <stop offset="1" stop-color="#FF8A00"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#sp-icon-grad-dark)"/>
+  <g transform="translate(40 16)">
+    <rect x="0" y="6" width="14" height="2.5" rx="1.25" fill="#ffffff" fill-opacity="0.92"/>
+    <rect x="6" y="0" width="2.5" height="14" rx="1.25" fill="#ffffff" fill-opacity="0.92"/>
+  </g>
+  <path
+    d="M18 36 L28 44 L46 26"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

@@ -1,16 +1,8 @@
-/**
- * RBAC service — granular admin permissions.
- *
- * Super Admin always has all permissions implicitly.
- * Admin permission grants live in `admin_permissions` and are queried via
- * the `fn_admin_has_permission` RPC. The list is also cached in the
- * browser for fast UI gating (the UI uses realtime subscription to keep
- * the cache hot).
- */
+
 import { supabase } from '../lib/supabase';
 import type { AdminPermission, AdminPermissionKey } from '../types/database';
 
-/** All permissions a Super Admin implicitly has. */
+
 export const ALL_PERMISSIONS: AdminPermissionKey[] = [
   'passport.review',
   'passport.renew',
@@ -29,7 +21,7 @@ export const ALL_PERMISSIONS: AdminPermissionKey[] = [
   'user.premium',
 ];
 
-/** Human-readable labels for each permission (used in the Super Admin UI). */
+
 export const PERMISSION_LABELS: Record<AdminPermissionKey, { label: string; group: string }> = {
   'passport.review':  { label: 'Review passport submissions', group: 'Passports' },
   'passport.renew':   { label: 'Approve renewals', group: 'Passports' },
@@ -48,9 +40,7 @@ export const PERMISSION_LABELS: Record<AdminPermissionKey, { label: string; grou
   'user.premium':     { label: 'Manage premium status', group: 'Users' },
 };
 
-/**
- * Fetch every permission row for an admin profile.
- */
+
 export async function listAdminPermissions(profileId: string): Promise<AdminPermission[]> {
   if (!profileId) return [];
   const { data, error } = await supabase
@@ -62,10 +52,7 @@ export async function listAdminPermissions(profileId: string): Promise<AdminPerm
   return (data as AdminPermission[]) ?? [];
 }
 
-/**
- * Check if the current authenticated caller has a permission.
- * Super Admins always return true.
- */
+
 export async function currentUserHasPermission(permission: AdminPermissionKey): Promise<boolean> {
   try {
     const { data, error } = await supabase.rpc('fn_admin_has_permission', { p_permission: permission });
@@ -76,7 +63,7 @@ export async function currentUserHasPermission(permission: AdminPermissionKey): 
   }
 }
 
-/** Grant / revoke a permission for a target admin profile. */
+
 export async function setAdminPermission(
   targetProfileId: string,
   permission: AdminPermissionKey,
@@ -90,7 +77,7 @@ export async function setAdminPermission(
   if (error) throw error;
 }
 
-/** Promote a user (by email) to Admin. */
+
 export async function createAdmin(email: string, fullName?: string): Promise<string> {
   const { data, error } = await supabase.rpc('fn_admin_create_admin', {
     p_email: email,
@@ -100,17 +87,44 @@ export async function createAdmin(email: string, fullName?: string): Promise<str
   return data as string;
 }
 
-/** Demote an admin back to a regular user. */
+
 export async function removeAdmin(profileId: string): Promise<void> {
   const { error } = await supabase.rpc('fn_admin_remove_admin', { p_target_profile_id: profileId });
   if (error) throw error;
 }
 
-/** Suspend / unsuspend an admin account. */
+
 export async function setAdminSuspended(profileId: string, suspended: boolean): Promise<void> {
   const { error } = await supabase.rpc('fn_admin_suspend_admin', {
     p_target_profile_id: profileId,
     p_suspended: suspended,
   });
   if (error) throw error;
+}
+
+export interface GovernanceContext {
+  is_super_admin: boolean;
+  super_admin_email: string;
+  current_user_email: string | null;
+  current_role: string | null;
+}
+
+
+export async function getGovernanceContext(): Promise<GovernanceContext> {
+  const { data, error } = await supabase.rpc('fn_admin_list_governance_context');
+  if (error) throw error;
+  const ctx = (data ?? {}) as Partial<GovernanceContext>;
+  return {
+    is_super_admin: Boolean(ctx.is_super_admin),
+    super_admin_email: String(ctx.super_admin_email ?? '').toLowerCase(),
+    current_user_email: ctx.current_user_email ?? null,
+    current_role: ctx.current_role ?? null,
+  };
+}
+
+
+export async function setSuperAdminEmail(email: string): Promise<string> {
+  const { data, error } = await supabase.rpc('fn_set_super_admin_email', { p_new_email: email });
+  if (error) throw error;
+  return String(data ?? '').toLowerCase();
 }

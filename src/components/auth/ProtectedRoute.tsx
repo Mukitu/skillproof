@@ -11,7 +11,7 @@ export const ProtectedRoute: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#FFF8F6] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-slate-600">
-          <Loader2 className="w-8 h-8 animate-spin text-[#ED1C24]" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#E31B23]" />
           <p className="text-xs font-semibold">Verifying authentication...</p>
         </div>
       </div>
@@ -33,7 +33,7 @@ export const AdminRoute: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#FFF8F6] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-slate-600">
-          <Loader2 className="w-8 h-8 animate-spin text-[#ED1C24]" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#E31B23]" />
           <p className="text-xs font-semibold">Verifying administrative access...</p>
         </div>
       </div>
@@ -59,7 +59,7 @@ export const SuperAdminRoute: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#FFF8F6] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-slate-600">
-          <Loader2 className="w-8 h-8 animate-spin text-[#ED1C24]" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#E31B23]" />
           <p className="text-xs font-semibold">Verifying super administrative access...</p>
         </div>
       </div>

@@ -1,14 +1,11 @@
-/**
- * DashboardCard — small metric card used by the Admin Dashboard.
- * Accepts an icon, label, value, color, and an optional subLabel (e.g. "+5 today").
- */
+
 import React from 'react';
 
 export interface DashboardCardProps {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   value: number | string;
-  color?: string; // tailwind bg color
+  color?: string; 
   subLabel?: string;
   href?: string;
 }

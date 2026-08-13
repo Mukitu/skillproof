@@ -1,26 +1,16 @@
-/**
- * Employer verification service.
- *
- * The atomic `fn_employer_verify` RPC validates a passport and writes a
- * row to `employer_verifications` in the same transaction. The client
- * just calls the RPC; the server captures IP, browser, device.
- */
+
 import { supabase } from '../lib/supabase';
 import { useCallback, useEffect, useState } from 'react';
 import { useRealtimeRefresh } from './realtime';
-import type { EmployerVerification, SkillPassport } from '../types/database';
 
 export type VerifyOutcome = 'verified' | 'invalid' | 'expired' | 'suspended';
 
 export interface VerifyResult {
   result: VerifyOutcome;
-  passport: SkillPassport | null;
+  passport: any | null;
 }
 
-/**
- * Resolve the caller's IP via the public ipify endpoint. Falls back to
- * null when offline or blocked (still useful for analytics).
- */
+
 async function resolveCallerGeo(): Promise<{ ip: string | null; country: string | null; city: string | null; region: string | null }> {
   try {
     const ctl = new AbortController();
@@ -46,17 +36,18 @@ function deviceFromUA(ua: string): string {
 
 function browserFromUA(ua: string): string {
   if (/Edg\//.test(ua)) return 'Edge';
+
   if (/OPR\/|Opera/.test(ua)) return 'Opera';
   if (/Firefox\//.test(ua)) return 'Firefox';
+
   if (/Chrome\//.test(ua)) return 'Chrome';
+
   if (/Safari\//.test(ua)) return 'Safari';
+
   return 'Other';
 }
 
-/**
- * Public verification entrypoint. Calls the atomic RPC and returns the
- * resolved passport + outcome. IP and geo are best-effort.
- */
+
 export async function verifyPassport(query: string): Promise<VerifyResult> {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const referer = typeof document !== 'undefined' ? document.referrer || null : null;
@@ -74,42 +65,126 @@ export async function verifyPassport(query: string): Promise<VerifyResult> {
   });
   if (error) throw error;
   const result = (data?.result ?? 'invalid') as VerifyOutcome;
-  const passport = (data?.passport as SkillPassport) ?? null;
+  const passport = (data?.passport ?? null) as any;
   return { result, passport };
 }
 
-/** List all employer verifications (admin only). */
-export async function listEmployerVerifications(opts: { limit?: number; result?: string } = {}): Promise<EmployerVerification[]> {
-  let q = supabase
-    .from('employer_verifications')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(opts.limit ?? 200);
-  if (opts.result) q = q.eq('result', opts.result);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data as EmployerVerification[]) ?? [];
+
+export interface EmployerVerificationListRow {
+  id: string;
+  passport_id: string | null;
+  passport_number: string | null;
+  verification_id: string | null;
+  result: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  browser: string | null;
+  device: string | null;
+  country: string | null;
+  city: string | null;
+  region: string | null;
+  referer: string | null;
+  created_at: string;
+  passport_status: string | null;
+  passport_title: string | null;
+  passport_full_name: string | null;
+  passport_email: string | null;
+  total_count: number;
 }
 
-/** Hook with realtime subscription. */
-export function useEmployerVerifications(limit = 200) {
-  const [rows, setRows] = useState<EmployerVerification[]>([]);
-  const [loading, setLoading] = useState(true);
+export interface EmployerVerificationListPage {
+  rows: EmployerVerificationListRow[];
+  total: number;
+}
 
-  const load = useCallback(async () => {
-    setLoading(true);
+
+export async function listEmployerVerificationsPage(opts: {
+  search?: string;
+  result?: string;
+  offset?: number;
+  limit?: number;
+} = {}): Promise<EmployerVerificationListPage> {
+  const limit = Math.max(1, Math.min(opts.limit ?? 50, 500));
+  const offset = Math.max(0, opts.offset ?? 0);
+  const { data, error } = await supabase.rpc('fn_admin_list_employer_verifications', {
+    p_search: opts.search ?? null,
+    p_result: opts.result === 'all' || !opts.result ? null : opts.result,
+    p_offset: offset,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  const rows = ((data as any[]) ?? []) as EmployerVerificationListRow[];
+  // total_count is embedded on every row by the SQL function, but lands as 0
+  // when the offset skips past the end (no rows returned). Fall back to a
+  // dedicated count RPC so the pager shows the true total.
+  let total = rows.length > 0 ? Number(rows[0].total_count ?? 0) : 0;
+  if (rows.length === 0 && offset > 0) {
     try {
-      const data = await listEmployerVerifications({ limit });
-      setRows(data);
-    } catch (e) {
+      const { data: countData, error: countErr } = await supabase.rpc('fn_admin_count_employer_verifications', {
+        p_search: opts.search ?? null,
+        p_result: opts.result === 'all' || !opts.result ? null : opts.result,
+      });
+      if (!countErr && countData != null) {
+        total = Number(countData) || 0;
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+  return { rows, total };
+}
+
+
+export async function getEmployerVerificationDetail(id: string): Promise<any> {
+  const { data, error } = await supabase.rpc('fn_admin_get_employer_verification', { p_id: id });
+  if (error) throw error;
+  return data;
+}
+
+
+export function useEmployerVerifications(opts: {
+  search?: string;
+  result?: string;
+  pageSize?: number;
+} = {}) {
+  const pageSize = opts.pageSize ?? 25;
+  const [rows, setRows] = useState<EmployerVerificationListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+
+  const load = useCallback(async (off: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const page = await listEmployerVerificationsPage({
+        search: opts.search,
+        result: opts.result,
+        offset: off,
+        limit: pageSize,
+      });
+      setRows(page.rows);
+      setTotal(page.total);
+      setOffset(off);
+    } catch (e: any) {
       console.error('[employer-verifications] load failed', e);
+      setError(e?.message ?? 'Failed to load verifications');
     } finally {
       setLoading(false);
     }
-  }, [limit]);
+  }, [opts.search, opts.result, pageSize]);
 
-  useEffect(() => { void load(); }, [load]);
-  useRealtimeRefresh('employer_verifications', load);
+  useEffect(() => {
+    void load(0);
+    
+  }, [opts.search, opts.result, pageSize]);
 
-  return { rows, loading, refresh: load };
+  useRealtimeRefresh('employer_verifications', () => { void load(0); });
+
+  const next = () => { void load(offset + pageSize); };
+  const prev = () => { void load(Math.max(0, offset - pageSize)); };
+  const refresh = () => { void load(offset); };
+
+  return { rows, loading, error, total, offset, pageSize, next, prev, refresh };
 }

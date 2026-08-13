@@ -1,14 +1,6 @@
-/**
- * Admin service — user management + bulk delete/status.
- *
- * Authorization header policy (strict):
- *   Every protected /api/admin/* request sends ONLY the current authenticated
- *   user's Supabase access_token — obtained via supabase.auth.getSession()
- *   and refreshed if expired. We NEVER use the anon key, refresh token,
- *   service-role key, undefined or null.
- */
+
 import { supabase } from '../lib/supabase';
-import { APP_URL } from '../lib/supabase';
+import { apiUrl } from '../config/api';
 import type { Profile } from '../types/database';
 
 export async function listUsers(): Promise<Profile[]> {
@@ -20,7 +12,7 @@ export async function listUsers(): Promise<Profile[]> {
   return (data as Profile[]) ?? [];
 }
 
-/** List every admin / super admin profile. Used by the governance page. */
+
 export async function listAdminProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase
     .from('profiles')
@@ -38,13 +30,7 @@ export async function getUser(id: string): Promise<Profile | null> {
   return (data as Profile) ?? null;
 }
 
-/**
- * Resolve the current Supabase access_token for an Admin API request.
- *   1. Call supabase.auth.getSession() — the single source of truth.
- *   2. If the session is null or the access_token is missing/expired, call
- *      supabase.auth.refreshSession() to get a fresh one.
- *   3. Return session.access_token — never anything else.
- */
+
 async function getAdminBearer(): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession();
 
@@ -80,7 +66,7 @@ async function adminFetch(path: string, init?: RequestInit) {
       `| header="${headerValue.length > 80 ? headerValue.slice(0, 14) + '…' + headerValue.slice(-12) : headerValue}" ` +
       `| fullTokenMasked=${masked}`
     );
-    return fetch(`${APP_URL}/api/admin${path}`, {
+    return fetch(apiUrl(`/api/admin${path}`), {
       ...init,
       headers: {
         'Content-Type': 'application/json',
@@ -90,12 +76,12 @@ async function adminFetch(path: string, init?: RequestInit) {
     });
   };
 
-  // First attempt with the current Supabase session.access_token.
+  
   let res = await send(await getAdminBearer());
   console.log(`[adminFetch] ← ${path} status=${res.status}`);
 
   if (res.status === 401 || res.status === 403) {
-    // The BFF rejected the JWT. Force a refresh and retry exactly once.
+    
     try {
       const { data, error } = await supabase.auth.refreshSession();
       if (!error && data.session?.access_token) {
@@ -103,14 +89,18 @@ async function adminFetch(path: string, init?: RequestInit) {
         console.log(`[adminFetch] ← ${path} retry status=${res.status}`);
       }
     } catch {
-      // Keep the original response so the caller sees the real error.
+      
     }
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    const detail = body.code ? ` [${body.code}]` : '';
+    const msg = body.error
+      ? `${body.error}${detail}`
+      : (body.message || `HTTP ${res.status} ${res.statusText}`);
     console.error(`[adminFetch] ✗ ${path} status=${res.status} body=${JSON.stringify(body)}`);
-    throw new Error(body.error || 'Admin request failed');
+    throw new Error(msg);
   }
   return res.json();
 }
@@ -133,6 +123,25 @@ export async function setUserPremium(id: string, until: string | null) {
 
 export async function resetUserPassword(id: string) {
   return adminFetch(`/users/${id}/reset-password`, { method: 'POST' });
+}
+
+// Admin sets a new password directly. The admin then emails it to the user
+// via their own Gmail — used when the Supabase recovery email is delayed or
+// lands in spam. Backend RPC: POST /users/:id/set-password.
+export async function setUserPassword(id: string, newPassword: string) {
+  return adminFetch(`/users/${id}/set-password`, {
+    method: 'POST',
+    body: JSON.stringify({ new_password: newPassword }),
+  });
+}
+
+// Admin triggers Supabase to re-send the password-recovery email.
+// Backend RPC: POST /users/:id/send-reset-email.
+export async function sendUserResetEmail(id: string, redirectTo?: string) {
+  return adminFetch(`/users/${id}/send-reset-email`, {
+    method: 'POST',
+    body: JSON.stringify({ redirect_to: redirectTo }),
+  });
 }
 
 export async function deleteUser(id: string) {

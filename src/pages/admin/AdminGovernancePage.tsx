@@ -1,32 +1,17 @@
-/**
- * AdminGovernancePage — Super Admin only.
- *
- *  - Create new admins (by email)
- *  - Promote / demote / suspend / unsuspend admin accounts
- *  - Grant / revoke granular permissions per admin
- *  - View the full set of permissions in a matrix layout
- *
- * The page is gated to the designated Super Admin email on the server
- * (see server/routes/governance.ts). The UI also hides itself from other
- * admins.
- */
+
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, CheckCircle2, Loader2, Plus, Shield, ShieldCheck, ShieldOff, UserCheck, UserX } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 import {
-  ALL_PERMISSIONS, PERMISSION_LABELS, createAdmin, listAdminPermissions,
-  removeAdmin, setAdminPermission, setAdminSuspended,
+  AlertCircle, CheckCircle2, Loader2, Plus, Shield, ShieldCheck, ShieldOff, UserCheck, UserX,
+} from 'lucide-react';
+import {
+  ALL_PERMISSIONS, PERMISSION_LABELS, createAdmin, getGovernanceContext,
+  listAdminPermissions, removeAdmin, setAdminPermission, setAdminSuspended, setSuperAdminEmail,
 } from '../../services/rbac';
 import { listAdminProfiles } from '../../services/admin';
 import { useRealtimeRefresh } from '../../services/realtime';
 import type { AdminPermission, AdminPermissionKey, Profile } from '../../types/database';
 
-const SUPER_ADMIN_EMAIL = (import.meta.env.VITE_SUPER_ADMIN_EMAIL || 'mukituislamnishat@gmail.com').toLowerCase();
-
 export default function AdminGovernancePage() {
-  const { profile, role } = useAuth();
-  const isSuperAdmin = (role === 'super_admin') && profile?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
-
   const [admins, setAdmins] = useState<Profile[]>([]);
   const [permissions, setPermissions] = useState<Record<string, AdminPermission[]>>({});
   const [loading, setLoading] = useState(true);
@@ -34,6 +19,28 @@ export default function AdminGovernancePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selected, setSelected] = useState<Profile | null>(null);
+
+  const [governance, setGovernance] = useState<{
+    isSuperAdmin: boolean; superAdminEmail: string;
+  } | null>(null);
+
+  const [superEmailInput, setSuperEmailInput] = useState('');
+  const [superTransferBusy, setSuperTransferBusy] = useState(false);
+  const [superConfirmText, setSuperConfirmText] = useState('');
+  const [superConfirmOpen, setSuperConfirmOpen] = useState(false);
+
+  const loadGovernance = useCallback(async () => {
+    try {
+      const ctx = await getGovernanceContext();
+      setGovernance({
+        isSuperAdmin: ctx.is_super_admin,
+        superAdminEmail: ctx.super_admin_email,
+      });
+      setSuperEmailInput(ctx.super_admin_email);
+    } catch (e) {
+      console.error('[governance] context load failed', e);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,9 +59,11 @@ export default function AdminGovernancePage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
-  useRealtimeRefresh('admin_permissions', load);
-  useRealtimeRefresh('profiles', load);
+  useEffect(() => { void loadGovernance(); }, [loadGovernance]);
+  useEffect(() => { if (governance) void load(); }, [governance, load]);
+  useRealtimeRefresh('admin_permissions', () => { void load(); });
+  useRealtimeRefresh('profiles', () => { void load(); });
+  useRealtimeRefresh('app_settings', () => { void loadGovernance(); });
 
   const groupedPermissions = useMemo(() => {
     const groups: Record<string, AdminPermissionKey[]> = {};
@@ -142,12 +151,50 @@ export default function AdminGovernancePage() {
     }
   }
 
-  if (!isSuperAdmin) {
+  async function handleTransferSuperAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (superEmailInput.toLowerCase() === (governance?.superAdminEmail ?? '').toLowerCase()) {
+      setError('The new Super Admin must be a different email than the current one.');
+      return;
+    }
+    // Open a typed-confirmation modal — this is the single most destructive
+    // action in the admin portal so we never accept a one-click confirmation.
+    setSuperConfirmText('');
+    setSuperConfirmOpen(true);
+  }
+
+  async function confirmTransferSuperAdmin() {
+    setSuperTransferBusy(true);
+    setError('');
+    setSuccess('');
+    try {
+      const newEmail = await setSuperAdminEmail(superEmailInput);
+      setSuccess(`Super Admin transferred to ${newEmail}.`);
+      setSuperConfirmOpen(false);
+      setSuperConfirmText('');
+      await loadGovernance();
+      await load();
+    } catch (e: any) {
+      setError(e?.message || 'Could not transfer Super Admin.');
+    } finally {
+      setSuperTransferBusy(false);
+    }
+  }
+
+  if (governance === null) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        <Loader2 size={16} className="animate-spin" /> Loading governance context…
+      </div>
+    );
+  }
+
+  if (!governance.isSuperAdmin) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-6">
         <h1 className="text-xl font-bold text-amber-900">Governance panel is restricted</h1>
         <p className="mt-2 text-sm text-amber-800">
-          Only the designated Super Admin (<span className="font-mono">{SUPER_ADMIN_EMAIL}</span>) can manage admins and permissions.
+          Only the configured Super Admin (<span className="font-mono">{governance.superAdminEmail || '—'}</span>) can manage admins and permissions.
         </p>
       </div>
     );
@@ -155,22 +202,67 @@ export default function AdminGovernancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Governance & RBAC</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Promote admins, manage permissions, and audit every privileged action.
-          </p>
-        </div>
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-          {admins.length} admin{admins.length === 1 ? '' : 's'} in this org
+      <div className="relative overflow-hidden rounded-brand-lg border border-brand-border bg-white px-5 sm:px-6 py-5 shadow-brand-sm">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1"
+          style={{
+            background:
+              'linear-gradient(90deg,#E31B23 0%,#F97316 55%,#FF8A00 100%)',
+          }}
+        />
+        <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-fuchsia-50 border border-fuchsia-200 text-[11px] font-bold uppercase tracking-wider text-fuchsia-700">
+              <Shield className="w-3 h-3" /> Super Admin · Governance
+            </span>
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">Governance & RBAC</h1>
+            <p className="mt-1 text-sm text-slate-500 break-words">
+              Promote admins, manage permissions, and audit every privileged action.
+            </p>
+          </div>
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs sm:text-sm font-bold text-blue-800 shrink-0">
+            {admins.length} admin{admins.length === 1 ? '' : 's'} in this org
+          </div>
         </div>
       </div>
 
       {error && <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={18} className="shrink-0" />{error}</div>}
       {success && <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"><CheckCircle2 size={18} className="shrink-0" />{success}</div>}
 
-      {/* Create admin */}
+      {}
+      <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/40 p-6 shadow-sm">
+        <div className="mb-3 flex items-start gap-3">
+          <ShieldCheck size={18} className="mt-0.5 text-fuchsia-700" />
+          <div>
+            <h2 className="text-lg font-semibold text-fuchsia-900">Admin Settings · Super Admin account</h2>
+            <p className="mt-1 text-sm text-fuchsia-800">
+              The configured Super Admin is <span className="font-mono">{governance.superAdminEmail}</span>. Transferring
+              this role will atomically promote the new account and demote the current one.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={handleTransferSuperAdmin} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <input
+            type="email"
+            required
+            value={superEmailInput}
+            onChange={(e) => setSuperEmailInput(e.target.value)}
+            placeholder="new-super-admin@example.com"
+            className="rounded-lg border border-fuchsia-200 bg-white px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            disabled={superTransferBusy || superEmailInput.toLowerCase() === governance.superAdminEmail}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-fuchsia-600 px-4 py-2 text-sm font-medium text-white hover:bg-fuchsia-700 disabled:opacity-50"
+          >
+            {superTransferBusy ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
+            Transfer Super Admin
+          </button>
+        </form>
+      </div>
+
+      {}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Create new admin</h2>
         <p className="mt-1 text-sm text-slate-500">Promote an existing user to admin by email. The user must already have an account.</p>
@@ -183,7 +275,7 @@ export default function AdminGovernancePage() {
         </form>
       </div>
 
-      {/* Admin list */}
+      {}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-[720px] w-full text-left text-sm">
@@ -206,7 +298,7 @@ export default function AdminGovernancePage() {
               {admins.map((admin) => {
                 const granted = (permissions[admin.id] ?? []).map((p) => p.permission);
                 const isSelected = selected?.id === admin.id;
-                const isSuper = admin.role === 'super_admin';
+                const isSuper = admin.email?.toLowerCase() === governance.superAdminEmail;
                 return (
                   <tr key={admin.id} className={`hover:bg-slate-50 ${isSelected ? 'bg-blue-50/60' : ''}`}>
                     <td className="px-4 py-3">
@@ -215,7 +307,7 @@ export default function AdminGovernancePage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${isSuper ? 'bg-fuchsia-100 text-fuchsia-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {admin.role}
+                        {isSuper ? 'super_admin' : admin.role}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -228,7 +320,9 @@ export default function AdminGovernancePage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => setSelected(admin)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Permissions</button>
+                        {!isSuper && (
+                          <button onClick={() => setSelected(admin)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Permissions</button>
+                        )}
                         {!isSuper && !admin.is_suspended && (
                           <button onClick={() => void handleSuspend(admin, true)} disabled={busy} className="rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"><UserX size={12} className="inline mr-1" />Suspend</button>
                         )}
@@ -248,7 +342,7 @@ export default function AdminGovernancePage() {
         </div>
       </div>
 
-      {/* Permission matrix */}
+      {}
       {selected && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -258,40 +352,72 @@ export default function AdminGovernancePage() {
             </div>
             <button onClick={() => setSelected(null)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Close</button>
           </div>
-          {selected.role === 'super_admin' ? (
-            <div className="flex items-center gap-3 rounded-lg border border-fuchsia-200 bg-fuchsia-50 p-4 text-sm text-fuchsia-800">
-              <ShieldCheck size={18} /> Super Admin implicitly has all permissions.
-            </div>
-          ) : (
-            <div className="space-y-5">
-              {groupEntries.map(([group, perms]) => (
-                <div key={group}>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{group}</h3>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {perms.map((perm) => {
-                      const granted = (permissions[selected.id] ?? []).some((p) => p.permission === perm);
-                      return (
-                        <button
-                          key={perm}
-                          onClick={() => void handleTogglePermission(selected, perm, !granted)}
-                          disabled={busy}
-                          className={`flex items-center justify-between gap-3 rounded-lg border p-3 text-left transition-all disabled:opacity-50 ${granted ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-                        >
-                          <span className="flex items-center gap-2 text-sm font-medium text-slate-800">
-                            {granted ? <ShieldCheck size={16} className="text-emerald-600" /> : <Shield size={16} className="text-slate-400" />}
-                            {PERMISSION_LABELS[perm].label}
-                          </span>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${granted ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {granted ? 'Granted' : 'Off'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+          <div className="space-y-5">
+            {groupEntries.map(([group, perms]) => (
+              <div key={group}>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{group}</h3>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {perms.map((perm) => {
+                    const granted = (permissions[selected.id] ?? []).some((p) => p.permission === perm);
+                    return (
+                      <button
+                        key={perm}
+                        onClick={() => void handleTogglePermission(selected, perm, !granted)}
+                        disabled={busy}
+                        className={`flex items-center justify-between gap-3 rounded-lg border p-3 text-left transition-all disabled:opacity-50 ${granted ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                          {granted ? <ShieldCheck size={16} className="text-emerald-600" /> : <Shield size={16} className="text-slate-400" />}
+                          {PERMISSION_LABELS[perm].label}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${granted ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {granted ? 'Granted' : 'Off'}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {}
+      {superConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setSuperConfirmOpen(false); }}>
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl">
+            <div className="flex items-start gap-3 border-b border-rose-200 bg-rose-50 px-5 py-4">
+              <Shield size={18} className="mt-0.5 shrink-0 text-rose-700" />
+              <div>
+                <h2 className="font-semibold text-rose-900">Confirm Super Admin transfer</h2>
+                <p className="mt-1 text-xs text-rose-800">This action is <strong>irreversible from the UI</strong>. The current Super Admin (<span className="font-mono">{governance?.superAdminEmail}</span>) will be demoted to admin, and <span className="font-mono">{superEmailInput}</span> will become the sole Super Admin.</p>
+              </div>
             </div>
-          )}
+            <div className="space-y-3 p-5">
+              <p className="text-sm text-slate-700">To proceed, type the word <strong className="font-mono">TRANSFER</strong> below:</p>
+              <input
+                type="text"
+                value={superConfirmText}
+                onChange={(e) => setSuperConfirmText(e.target.value)}
+                placeholder="TRANSFER"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
+              <button type="button" onClick={() => { setSuperConfirmOpen(false); setSuperConfirmText(''); }} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button
+                type="button"
+                disabled={superTransferBusy || superConfirmText.trim().toUpperCase() !== 'TRANSFER'}
+                onClick={() => void confirmTransferSuperAdmin()}
+                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-rose-700 disabled:opacity-40"
+              >
+                {superTransferBusy ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
+                I understand, transfer Super Admin
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,4 @@
-/**
- * Taxonomy service — categories, sub-categories, skills.
- */
+
 import { supabase } from '../lib/supabase';
 import type { Category, Difficulty, SubCategory, Skill, TaxonomyStatus } from '../types/database';
 
@@ -63,7 +61,7 @@ export async function adminUpdateCategory(id: string, input: {
 export async function adminDeleteCategory(id: string) {
   const { error } = await supabase.rpc('fn_admin_delete_category', { p_id: id });
   if (error) {
-    // Surface a human-readable message while preserving the underlying cause.
+    
     throw new Error(`Could not delete category: ${error.message || 'Unknown error'}`);
   }
 }
@@ -148,7 +146,7 @@ export async function adminDeleteSkill(id: string) {
   if (error) throw new Error(`Could not delete skill: ${error.message || 'Unknown error'}`);
 }
 
-// Cascade-aware deletion. The RPC returns JSONB describing what was deleted.
+
 export async function adminDeleteCategorySafe(p_id: string) {
   const { data, error } = await supabase.rpc('fn_admin_delete_category', { p_id });
   if (error) throw new Error(`Could not delete category: ${error.message || 'Unknown error'}`);
@@ -235,16 +233,7 @@ export interface TaxonomyImportSummary {
   skills: number;
 }
 
-/**
- * Validate and import a taxonomy JSON payload into Supabase.
- * The server-side RPC validates, rejects duplicates, and runs the inserts in
- * a single transaction so any failure atomically rolls back.
- *
- * Callers should pre-sanitize the payload in the browser (see
- * `sanitizeTaxonomyPayload` in AdminTaxonomyPage) so invalid records never
- * reach the database. Any error message from the RPC is surfaced verbatim so
- * admins see the exact row/column that failed.
- */
+
 export async function adminImportTaxonomyJson(payload: unknown): Promise<TaxonomyImportSummary> {
   const { data, error } = await supabase.rpc('fn_admin_import_taxonomy_json', {
     p_payload: payload as any,

@@ -1,8 +1,62 @@
+# Dependencies
 node_modules/
+
+# Build / generated output
 build/
 dist/
 coverage/
+
+# OS
 .DS_Store
+
+# Logs
 *.log
-.env*
+*.log.*
+
+# Environment secrets
+.env
+.env.*
 !.env.example
+
+# Deployment/private folders (kept locally, never committed)
+/deploy/
+/supabase/
+/backend bdapps/
+
+# Archives
+*.tar.gz
+*.zip
+
+# Data files not required by production
+*.csv
+
+# Test / development artifacts
+tmp/
+tmp_pdf/
+*.bak
+
+# PHP local configuration
+.htaccess.local
+
+# Local IDE files
+.vscode/
+.idea/
+
+# Local CLI tool state
+.puku-cli/
+
+# Misc local files
+*.swp
+*.swo
+
+# SkillProof-specific dev helpers (kept locally as historical)
+/patch_*.cjs
+/fix_imports.cjs
+/rewrite_*.cjs
+/update_*.cjs
+/update_*.js
+/server/
+/server.ts
+/bun.lock
+/metadata.json
+/diploy.md

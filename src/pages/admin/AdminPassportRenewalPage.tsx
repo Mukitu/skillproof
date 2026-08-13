@@ -1,13 +1,4 @@
-/**
- * AdminPassportRenewalPage — review queue for renewal requests.
- *
- *  - Lists every passport_renewal_history row (open by default) with status
- *    filter + search.
- *  - Selecting a row opens a detail panel with the renewing user's passport,
- *    expiry info, and an approve/reject form.
- *  - Approve → new issue_date / expiry_date, status flips to active.
- *  - Reject → decision recorded in passport_renewal_history.decision.
- */
+
 import { useCallback, useEffect, useMemo, useState, type Key as ReactKey } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Loader2, Search, ShieldCheck, XCircle } from 'lucide-react';
 import {
@@ -130,7 +121,7 @@ export default function AdminPassportRenewalPage() {
       )}
 
       {!loading && !!filtered.length && (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
           <table className="min-w-[800px] w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>

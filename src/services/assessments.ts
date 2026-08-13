@@ -1,9 +1,7 @@
-/**
- * Universal Assessment service.
- */
+
 import { supabase } from '../lib/supabase';
 import { getAccessToken, getCurrentUser } from './auth';
-import { APP_URL } from '../lib/supabase';
+import { apiUrl } from '../config/api';
 import { getMyProfileId } from './profile';
 import type { Difficulty, EvidenceLabel, UniversalAssessment, UniversalAssessmentEvidence, UniversalSubmission } from '../types/database';
 
@@ -33,7 +31,7 @@ export interface AssessmentGenerateInput {
 export async function generateAssessment(input: AssessmentGenerateInput): Promise<UniversalAssessment> {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated');
-  const res = await fetch(`${APP_URL}/api/generate-assessment`, {
+  const res = await fetch(apiUrl('/api/generate-assessment'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
@@ -112,7 +110,7 @@ export async function submitAssessment(input: SubmissionInput): Promise<Universa
   const profileId = await getMyProfileId();
   if (!profileId) throw new Error('Not authenticated');
 
-  // 1. Create the submission row first.
+  
   const { data: submission, error: subErr } = await supabase
     .from('universal_submissions')
     .insert({
@@ -126,13 +124,13 @@ export async function submitAssessment(input: SubmissionInput): Promise<Universa
     .single();
   if (subErr) throw subErr;
 
-  // 2. Mark the assessment as submitted.
+  
   await supabase
     .from('universal_assessments')
     .update({ status: 'Submitted', submitted_at: new Date().toISOString() })
     .eq('id', input.assessmentId);
 
-  // 3. Upload files via signed URLs and create evidence rows.
+  
   for (const item of input.files) {
     if (!(item.file instanceof File)) continue;
     const ctx: { fileName: string; mime: string; size: number } = {
@@ -140,7 +138,7 @@ export async function submitAssessment(input: SubmissionInput): Promise<Universa
       mime: item.file.type || 'application/octet-stream',
       size: item.file.size,
     };
-    const signRes = await fetch(`${APP_URL}/api/storage/evidence/sign-upload`, {
+    const signRes = await fetch(apiUrl('/api/storage/evidence/sign-upload'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ submissionId: submission.id, ...ctx }),
@@ -171,9 +169,8 @@ export async function submitAssessment(input: SubmissionInput): Promise<Universa
     if (evErr) throw evErr;
   }
 
-  // 4. Insert link evidence rows.
   const linkRows = Object.entries(input.links)
-    .filter(([, url]) => !!url && /^https?:\/\//i.test(url))
+    .filter(([, url]) => !!url && /^https?:\/\//.test(url))
     .map(([label, url]) => ({
       submission_id: submission.id,
       kind: 'link' as const,
@@ -222,7 +219,7 @@ export async function listEvidenceForSubmission(submissionId: string): Promise<U
 export async function getSignedUrl(bucket: string, path: string, expiresIn = 300): Promise<string> {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated');
-  const res = await fetch(`${APP_URL}/api/storage/signed-url`, {
+  const res = await fetch(apiUrl('/api/storage/signed-url'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ bucket, path, expiresIn }),

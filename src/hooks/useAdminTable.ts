@@ -1,7 +1,4 @@
-/**
- * useAdminTable — encapsulates Search / Status filter / Sort / Pagination
- * state for any admin list page.
- */
+
 import { useEffect, useMemo, useState } from 'react';
 
 export type SortDir = 'asc' | 'desc' | null;
@@ -49,10 +46,10 @@ export function useAdminTable<T extends Record<string, any>>(
   const [pageSize, setPageSize] = useState(initialPageSize ?? defaultPageSize);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Reset page on filter change.
+  
   useEffect(() => setPage(1), [search, statusFilter, pageSize, sortKey, sortDir]);
 
-  // Optional: keep state synced with the URL.
+  
   useEffect(() => {
     if (!syncToUrl || typeof window === 'undefined') return;
     const url = new URL(window.location.href);
@@ -60,7 +57,7 @@ export function useAdminTable<T extends Record<string, any>>(
     if (statusFilter) url.searchParams.set('status', statusFilter); else url.searchParams.delete('status');
     if (page > 1) url.searchParams.set('p', String(page)); else url.searchParams.delete('p');
     window.history.replaceState({}, '', url.toString());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [search, statusFilter, page]);
 
   const filtered = useMemo(() => {

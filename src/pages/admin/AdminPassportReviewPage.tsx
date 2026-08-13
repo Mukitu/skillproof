@@ -1,26 +1,19 @@
-/**
- * AdminPassportReviewPage — Enterprise Skill Passport review console.
- *
- * List + filters via AdminCRUDTable; selecting a passport opens a tabbed
- * review panel: Profile · CV · AI Career · Education · Experience · Projects ·
- * Assessment History · Evidence · Review Form.
- *
- * Review Form supports Approve / Request Revisions / Reject with Overall
- * Score (0–100) and feedback. Once a passport is active, a Level Override
- * dropdown is exposed alongside the audit trail.
- */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AdminCRUDTable, type ColumnDef, type LifecycleButton, type StatusOption,
 } from '../../components/admin/AdminCRUDTable';
 import { PassportCard } from '../../components/passport/PassportCard';
 import { LevelBadge } from '../../components/passport/LevelBadge';
+import { VerifiedSkillBadges } from '../../components/passport/VerifiedSkillBadges';
+import { VerifiedSkillsEditor } from '../../components/admin/VerifiedSkillsEditor';
 import {
   adminOverridePassportLevel, adminReviewPassport, getAllPassports, getPassportOverview,
 } from '../../services/passports';
+import { adminSetVerifiedSkills, getVerifiedSkills } from '../../services/verifiedSkills';
 import { useRealtimeRefresh } from '../../services/realtime';
 import type {
-  PassportLevel, PassportLevelHistory, PassportOverviewJoined, SkillPassport,
+  PassportLevel, PassportLevelHistory, PassportOverviewJoined, SkillPassport, VerifiedSkill,
 } from '../../types/database';
 
 const STATUS_OPTIONS: StatusOption[] = [
@@ -30,17 +23,18 @@ const STATUS_OPTIONS: StatusOption[] = [
   { value: 'suspended', label: 'Suspended', color: 'bg-gray-100 text-gray-800' },
 ];
 
-type TabKey = 'profile' | 'cv' | 'ai' | 'education' | 'experience' | 'projects' | 'verifications' | 'evidence' | 'review';
+type TabKey = 'profile' | 'cv' | 'ai' | 'education' | 'experience' | 'projects' | 'verifications' | 'evidence' | 'verified_skills' | 'review';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'profile', label: 'Profile' },
   { key: 'cv', label: 'CV' },
-  { key: 'ai', label: 'AI Career' },
+  { key: 'ai', label: 'SkillProof AI Career' },
   { key: 'education', label: 'Education' },
   { key: 'experience', label: 'Experience' },
   { key: 'projects', label: 'Projects' },
   { key: 'verifications', label: 'Assessment History' },
   { key: 'evidence', label: 'Evidence' },
+  { key: 'verified_skills', label: 'Verified Skills' },
   { key: 'review', label: 'Review Form' },
 ];
 
@@ -53,11 +47,11 @@ export default function AdminPassportReviewPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Review form fields
+  
   const [overallScore, setOverallScore] = useState<number>(75);
   const [feedback, setFeedback] = useState('');
 
-  // Level override
+  
   const [overrideLevel, setOverrideLevel] = useState<PassportLevel>('Bronze');
   const [overrideReason, setOverrideReason] = useState('');
 
@@ -177,6 +171,14 @@ export default function AdminPassportReviewPage() {
     }
   };
 
+  const saveVerifiedSkills = async (next: VerifiedSkill[]) => {
+    if (!active) return;
+    const updated = await adminSetVerifiedSkills(active.id, next);
+    setSuccess(`Verified skills saved (${next.length}).`);
+    setActive((current) => (current ? { ...current, ...updated } : current));
+    await load();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -226,7 +228,7 @@ export default function AdminPassportReviewPage() {
 
           <PassportCard passport={active} profile={overview?.profile ?? null} mode="full" />
 
-          {/* Tabs */}
+          {}
           <div className="border-b border-slate-200">
             <nav className="-mb-px flex flex-wrap gap-1 overflow-x-auto">
               {TABS.map((t) => (
@@ -254,6 +256,12 @@ export default function AdminPassportReviewPage() {
             {tab === 'projects' && <ProjectsTab overview={overview} />}
             {tab === 'verifications' && <VerificationsTab overview={overview} />}
             {tab === 'evidence' && <EvidenceTab overview={overview} />}
+            {tab === 'verified_skills' && (
+              <VerifiedSkillsTab
+                passport={active}
+                onSave={saveVerifiedSkills}
+              />
+            )}
             {tab === 'review' && (
               <ReviewForm
                 passport={active}
@@ -278,9 +286,9 @@ export default function AdminPassportReviewPage() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Tab components
-// ---------------------------------------------------------------------------
+
+
+
 
 function ProfileTab({ overview }: { overview: PassportOverviewJoined | null }) {
   const p = overview?.profile;
@@ -313,7 +321,7 @@ function ProfileTab({ overview }: { overview: PassportOverviewJoined | null }) {
 function CVTab({ overview }: { overview: PassportOverviewJoined | null }) {
   const path = overview?.profile?.resume_storage_path ?? overview?.profile?.resume_url ?? null;
   if (!path) return <Empty msg="No CV uploaded." />;
-  // We just hand back the URL — admins can click to download.
+  
   return (
     <div className="space-y-2">
       <p className="text-sm text-slate-700">Resume on file:</p>
@@ -331,7 +339,7 @@ function CVTab({ overview }: { overview: PassportOverviewJoined | null }) {
 
 function AITab({ overview }: { overview: PassportOverviewJoined | null }) {
   const ai = overview?.ai_career;
-  if (!ai) return <Empty msg="No AI Career Profile generated yet." />;
+  if (!ai) return <Empty msg="No SkillProof AI Career Profile generated yet." />;
   return (
     <div className="space-y-3">
       <Info label="Target role" value={ai.targetRole || ai.target_roles?.join(', ') || '—'} />
@@ -434,7 +442,7 @@ function VerificationsTab({ overview }: { overview: PassportOverviewJoined | nul
 }
 
 function EvidenceTab({ overview }: { overview: PassportOverviewJoined | null }) {
-  // Legacy fallback: pull from completed_projects (links) and verifications (project_url).
+  
   const projects = (overview?.passport?.completed_projects as Array<{ link?: string }> | null) ?? [];
   const verificationLinks = (overview?.verifications ?? [])
     .map((v) => v.project_url)
@@ -453,6 +461,28 @@ function EvidenceTab({ overview }: { overview: PassportOverviewJoined | null }) 
         </li>
       ))}
     </ul>
+  );
+}
+
+function VerifiedSkillsTab({
+  passport, onSave,
+}: {
+  passport: SkillPassport;
+  onSave: (next: VerifiedSkill[]) => Promise<void> | void;
+}) {
+  const skills = getVerifiedSkills(passport);
+  return (
+    <div className="space-y-4">
+      {skills.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700">
+            Live preview · what users see
+          </p>
+          <VerifiedSkillBadges skills={skills} variant="default" />
+        </div>
+      )}
+      <VerifiedSkillsEditor skills={skills} onSave={onSave} />
+    </div>
   );
 }
 
@@ -588,7 +618,7 @@ function ReviewForm({
   );
 }
 
-// ---------- Tiny helpers ----------
+
 
 function Field({ label, value, link, fullWidth }: { label: string; value: string | null; link?: boolean; fullWidth?: boolean }) {
   return (

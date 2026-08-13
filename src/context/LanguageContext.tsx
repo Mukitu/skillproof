@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { landingDictionary } from './landingTranslations';
 
 export type Language = 'bn' | 'en';
 
@@ -9,8 +10,9 @@ interface Translations {
   };
 }
 
+
 export const dictionary: Translations = {
-  // Brand
+  
   brandName: {
     bn: 'SKILLPROOF',
     en: 'SKILLPROOF',
@@ -20,65 +22,124 @@ export const dictionary: Translations = {
     en: 'Prove What You Can Actually Do.',
   },
   subTagline: {
-    bn: 'কোনো ভুয়া কুইজ ব্যাজ বা স্ট্যাটিক পিডিএফ নয়। কোডফোর্সেস-স্টাইল প্রোগ্রামিং চ্যালেঞ্জ এবং অভিজ্ঞ ইঞ্জিনিয়ারদের প্রজেক্ট পর্যালোচনার মাধ্যমে আপনার দক্ষতা যাচাই করুন। অর্জন করুন একক ধারাবাহিক "স্কিল পাসপোর্ট"।',
-    en: 'No fake quiz badges or static PDFs. Get verified through Codeforces-style programming challenges and senior human code review. Issue one continuous Skill Passport.',
+    bn: 'শুধু CV নয় — আপনার আসল দক্ষতার প্রমাণ।',
+    en: 'Not just a CV — proof of what you can really do.',
   },
 
-  // Nav
+  
   navHome: { bn: 'হোম', en: 'Home' },
   navHowItWorks: { bn: 'কিভাবে কাজ করে', en: 'How It Works' },
   navSkillVerification: { bn: 'স্কিল ভেরিফিকেশন', en: 'Skill Verification' },
   navPassport: { bn: 'স্কিল পাসপোর্ট', en: 'Skill Passport' },
   navJobPortal: { bn: 'জব পোর্টাল', en: 'Job Portal' },
+  navEmployerVerify: { bn: 'এমপ্লয়ার ভেরিফিকেশন', en: 'Employer Verification' },
+  navPlatform: { bn: 'প্ল্যাটফর্ম', en: 'Platform' },
   navAbout: { bn: 'আমাদের সম্পর্কে', en: 'About Us' },
   navLogin: { bn: 'লগইন', en: 'Login' },
   navRegister: { bn: 'সাইন আপ', en: 'Sign Up' },
   navDashboard: { bn: 'ড্যাশবোর্ড', en: 'Dashboard' },
   navAdminPanel: { bn: 'এডমিন প্যানেল', en: 'Admin Panel' },
   navLogout: { bn: 'লগআউট', en: 'Logout' },
+  navDownloadApp: { bn: 'APK ডাউনলোড', en: 'Download APK' },
 
-  // Hero Actions
+  
   btnStartVerify: { bn: 'দক্ষতা যাচাই শুরু করুন', en: 'Verify Skills Now' },
   btnSamplePassport: { bn: 'স্যাম্পল পাসপোর্ট দেখুন', en: 'View Sample Passport' },
 
-  // Stats
-  statDevelopers: { bn: '৫,০০০+ ভেরিফাইড ডেভেলপার', en: '5,000+ Verified Developers' },
-  statChallenges: { bn: '১,২০০+ সক্রিয় কোডিং প্রশ্ন', en: '1,200+ Coding Challenges' },
-  statProjects: { bn: '৪৫০+ প্রজেক্ট ভেরিফিকেশন', en: '450+ Manual Project Reviews' },
-  statPartners: { bn: '২৫০+ শীর্ষ আইটি পার্টনার', en: '250+ Tech Hiring Partners' },
-
-  // Pillars
-  pillarTitle: { bn: 'কঠোর ভেরিফিকেশন আর্কিটেকচার', en: 'Strict Verification Architecture' },
-  pillarSubtitle: { bn: 'আমরা কৃত্রিম কুইজ বাদ দিয়েছি। স্কিলপ্রুফ ২টি শক্তিশালী স্তম্ভের ওপর নির্ভরশীল।', en: 'We eliminated AI quizzes. SkillProof relies exclusively on two robust verification pillars.' },
   
-  codingChallengeTitle: { bn: '১. কোডিং চ্যালেঞ্জ', en: '1. Coding Challenge' },
+  statDevelopers: {
+    bn: '৫,০০০+ ভেরিফাইড দক্ষতা',
+    en: '5,000+ Verified Skills',
+  },
+  statChallenges: {
+    bn: '১,২০০+ অ্যাসেসমেন্ট সম্পন্ন',
+    en: '1,200+ Assessments Completed',
+  },
+  statProjects: {
+    bn: '৪৫০+ ক্যারিয়ার প্রোফাইল',
+    en: '450+ Career Profiles Built',
+  },
+  statPartners: {
+    bn: 'প্রতিটি ক্যারিয়ার লক্ষ্যের জন্য',
+    en: 'Built for every career goal',
+  },
+
+  
+  pillarTitle: {
+    bn: 'আপনার দক্ষতা যাচাইয়ের দুটি শক্তিশালী পদ্ধতি',
+    en: 'Two powerful ways to verify your skills',
+  },
+  pillarSubtitle: {
+    bn: 'আমরা শুধু কথা বলি না — আমরা আপনার দক্ষতার প্রমাণ চাই।',
+    en: 'We do not just listen to claims — we verify what you can actually do.',
+  },
+  
+  codingChallengeTitle: {
+    bn: '১. দক্ষতার অ্যাসেসমেন্ট',
+    en: '1. Skill Assessment',
+  },
   codingChallengeDesc: {
-    bn: 'কোডফোর্সেস ও কোডমামা স্টাইলের অ্যালগোরিদমিক প্রবলেম সলভিং। আপনার কোড হিডেন টেস্ট কেসের বিপরীতে স্বয়ংক্রিয়ভাবে রান করে এক্যুরেসি, রানটাইম ও মেমোরি পারফরম্যান্স নির্ধারণ করে।',
-    en: 'Codeforces/CodeMama-style algorithmic problem solving. Code runs against automated test cases measuring accuracy, execution speed, and memory usage.',
+    bn: 'আপনার পেশার জন্য তৈরি বাস্তবসম্মত অ্যাসেসমেন্ট সম্পন্ন করুন। টেকনিক্যাল, ডিজাইন, মার্কেটিং, অ্যাকাউন্টিং বা যেকোনো দক্ষতা — স্বয়ংক্রিয় মূল্যায়ন ও তাৎক্ষণিক স্কোর।',
+    en: 'Complete realistic assessments tailored to your profession — technical, design, marketing, accounting or any other skill. Get automated evaluation with instant scoring.',
   },
 
-  projectVerifyTitle: { bn: '২. প্রজেক্ট ভেরিফিকেশন', en: '2. Project Verification' },
+  projectVerifyTitle: {
+    bn: '২. প্রজেক্ট / কাজের যাচাই',
+    en: '2. Project / Work Review',
+  },
   projectVerifyDesc: {
-    bn: 'বাস্তবধর্মী ফুলস্ট্যাক প্রজেক্ট সম্পূর্ণ করুন। আপনার গিটহাব রিপোজিটরি বা জিপ ফাইল সাবমিট করুন যা সিনিয়র সফটওয়্যার ইঞ্জিনিয়ারদের দ্বারা ম্যানুয়ালি রিভিউ ও সার্টিফাই করা হয়।',
-    en: 'Complete realistic full-stack projects. Submit GitHub repository or ZIP archive for manual architectural review by senior software engineers.',
+    bn: 'আপনার বাস্তব কাজ সাবমিট করুন — গিটহাব লিংক, পোর্টফোলিও, ক্যাম্পেইন রিপোর্ট, কেস স্টাডি বা নমুনা কাজ। বিশেষজ্ঞ রিভিউয়াররা যাচাই করে আপনার দক্ষতার সত্যতা নিশ্চিত করেন।',
+    en: 'Submit your actual work — a GitHub link, portfolio, campaign report, case study or sample. Expert reviewers verify the authenticity and quality of your real-world skills.',
   },
 
-  // Live Demo Section
-  demoTitle: { bn: 'লাইভ আইডিই ও সাবমিশন ডেমো', en: 'Live IDE & Verdict Engine' },
-  demoSub: { bn: 'সহজ ইন্টারফেস ও তাৎক্ষণিক ফিডব্যাক টেস্ট কেস সাপোর্ট।', en: 'Seamless browser execution with real-time testcase verdicts.' },
+  
+  demoTitle: {
+    bn: 'দক্ষতা যাচাই প্রক্রিয়া',
+    en: 'How Skill Verification Works',
+  },
+  demoSub: {
+    bn: 'একটি সহজ উদাহরণ দিয়ে দেখুন — অ্যাসেসমেন্ট, মূল্যায়ন এবং প্রমাণ।',
+    en: 'See a simple example of assessment, evaluation, and proof.',
+  },
 
-  // Passport Section
-  passportHeader: { bn: 'বাংলাদেশি টেক ট্যালেন্টদের স্কিল পাসপোর্ট', en: 'Skill Passport for BD Tech Talent' },
-  passportDesc: { bn: 'একটিমাত্র ডিজিটাল ভেরিফাইড কিউআর পাসপোর্ট যা সকল প্রযুক্তিগত দক্ষতা, স্কোর এবং সাবমিশন হিস্ট্রি ধারণ করে।', en: 'One digital verified QR passport carrying all proven skills, test scores, and code history.' },
+  
+  passportHeader: {
+    bn: 'আপনার দক্ষতার ডিজিটাল পরিচয় — Skill Passport',
+    en: 'Your digital identity of skill — Skill Passport',
+  },
+  passportDesc: {
+    bn: 'আপনার verified skills, achievements এবং professional identity এক জায়গায় তুলে ধরুন। QR কোড সহ ডিজিটাল স্কিল পাসপোর্ট — চাকরিদাতারা যেকোনো সময় যাচাই করতে পারেন।',
+    en: 'Showcase your verified skills, achievements, and professional identity in one place. A QR-coded digital Skill Passport that employers can verify instantly.',
+  },
 
-  // Bangladesh Tech Ecosystem
-  bdEcosystemTitle: { bn: 'বাংলাদেশের শীর্ষ টেক হাবের জন্য তৈরি', en: 'Built for Bangladesh Tech Ecosystem' },
-  bdEcosystemSub: { bn: 'ঢাকা, চট্টগ্রাম, সিলেট এবং সারা দেশের ডেভলপারদের বিশ্বমানের ক্যারিয়ার গড়ে তোলার মাধ্যম।', en: 'Empowering developers from Dhaka, Chittagong, Sylhet & across Bangladesh to reach global standards.' },
+  
+  bdEcosystemTitle: {
+    bn: 'বাংলাদেশের প্রতিটি দক্ষ মানুষের জন্য',
+    en: 'For every skilled person in Bangladesh',
+  },
+  bdEcosystemSub: {
+    bn: 'শিক্ষার্থী থেকে অভিজ্ঞ পেশাজীবী — আপনার দক্ষতা যেকোনো ক্ষেত্রের হোক, SkillProof আপনাকে তা যাচাই, উন্নয়ন ও প্রমাণ করতে সাহায্য করবে।',
+    en: 'From students to experienced professionals — whatever your field, SkillProof helps you verify, improve, and prove your real skills.',
+  },
 
-  // Footer
+  
   footerRights: { bn: 'সর্বস্বত্ব সংরক্ষিত। স্কিলপ্রুফ বাংলাদেশ।', en: 'All rights reserved. SkillProof Bangladesh.' },
-  footerTagline: { bn: 'সত্যিকারের দক্ষতায় বিশ্বাসী প্ল্যাটফর্ম', en: 'Empowering BD Engineers through Proven Skills' },
+  footerVerifyLabel: { bn: 'পাসপোর্ট ভেরিফাই করুন', en: 'Verify Passport' },
+  footerPlatform: { bn: 'প্ল্যাটফর্ম', en: 'Platform' },
+  footerStandards: { bn: 'ভেরিফিকেশন স্ট্যান্ডার্ড', en: 'Verification Standards' },
+  footerTagline: {
+    bn: 'বাংলাদেশের skill verification ও career development প্ল্যাটফর্ম',
+    en: 'Bangladesh’s skill verification and career development platform',
+  },
 };
+
+
+
+for (const key of Object.keys(landingDictionary)) {
+  if (!dictionary[key]) {
+    dictionary[key] = landingDictionary[key];
+  }
+}
 
 interface LanguageContextType {
   language: Language;
@@ -91,7 +152,7 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('sp_lang');
-    return (saved === 'en' || saved === 'bn') ? saved : 'bn'; // Default to Bangla!
+    return (saved === 'en' || saved === 'bn') ? saved : 'bn'; 
   });
 
   const setLanguage = (lang: Language) => {

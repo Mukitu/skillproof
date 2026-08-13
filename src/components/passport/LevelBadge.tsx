@@ -6,10 +6,7 @@ interface LevelBadgeProps {
   showLabel?: boolean;
 }
 
-/**
- * Tier badge for the SkillProof Passport card.
- * Each level has its own gradient palette + iconographic mark.
- */
+
 export function LevelBadge({ level, size = 'md', showLabel = true }: LevelBadgeProps) {
   const styles = STYLES[level];
   const sizing = SIZING[size];

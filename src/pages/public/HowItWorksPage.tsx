@@ -1,104 +1,67 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ShieldCheck, Code2, FolderGit2, Map, Brain, CheckCircle2, ArrowRight } from 'lucide-react';
+import { ShieldCheck, ArrowRight } from 'lucide-react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Footer } from '../../components/layout/Footer';
 import { useLanguage } from '../../context/LanguageContext';
 
 export const HowItWorksPage: React.FC = () => {
-  const { language, t } = useLanguage();
+  const { language } = useLanguage();
+  const steps = language === 'bn'
+    ? [
+        ['১', 'আপনার ক্ষেত্র নির্বাচন করুন', 'প্রযুক্তি, ক্রিয়েটিভ, ব্যবসা, পেশাগত বা শিক্ষা — যেকোনো ক্ষেত্র থেকে নিজের লক্ষ্যের সাথে মিল রেখে যাত্রা শুরু করুন।'],
+        ['২', 'ক্যারিয়ার প্রোফাইল তৈরি করুন', 'আপনার বর্তমান সিভি আপলোড করুন। SkillProof AI আপনার অভিজ্ঞতা ও দক্ষতা সাজিয়ে দেবে এবং প্রয়োজনীয় দক্ষতার ঘাটতি চিহ্নিত করবে।'],
+        ['৩', 'ক্যারিয়ার রোডম্যাপ অনুসরণ করুন', 'নির্বাচিত ক্যাটাগরির জন্য প্রতি ২৪ ঘণ্টায় একটি করে মডিউল আনলক হবে — ধারাবাহিক ও পরিমিত গতিতে শেখার নিশ্চয়তা।'],
+        ['৪', 'অ্যাসেসমেন্ট ও কাজ জমা দিন', 'আপনার ক্ষেত্রের জন্য তৈরি বাস্তবসম্মত অ্যাসেসমেন্ট সম্পন্ন করুন অথবা আসল কাজের নমুনা জমা দিন। সিনিয়র রিভিউয়ার সেগুলো যাচাই করবেন।'],
+        ['৫', 'স্কিল পাসপোর্ট অর্জন করুন', 'প্রতিটি দক্ষতার জন্য একটিমাত্র স্কিল পাসপোর্ট লেভেল ১, ২ বা ৩ এ আপডেট হবে — যা আপনার আসল যোগ্যতার প্রমাণ।'],
+        ['৬', 'চাকরিদাতার সাথে শেয়ার করুন', 'আপনার পাবলিক পাসপোর্ট লিংক যেকোনো নিয়োগকারীর সাথে শেয়ার করুন — তারা অ্যাকাউন্ট ছাড়াই যাচাই করতে পারবেন।'],
+      ]
+    : [
+        ['1', 'Choose Your Field', 'Pick your field — Technology, Creative, Business, Professional or Education — and start a journey aligned with your career goal.'],
+        ['2', 'Build Your Career Profile', 'Upload your CV/resume. SkillProof AI organises your experience and skills and identifies gaps that need attention.'],
+        ['3', 'Follow a Career Roadmap', 'Modules unlock one by one every 24 hours so you build skills with consistent, sustainable momentum.'],
+        ['4', 'Complete Assessments & Submit Work', 'Complete realistic assessments for your field or submit actual work samples. Senior reviewers verify every submission.'],
+        ['5', 'Earn Your Skill Passport', 'A single Skill Passport per skill upgrades to Level 1, 2, or 3 — proof of your real ability, not a paper certificate.'],
+        ['6', 'Share with Employers', 'Share your public passport link with any employer — they can verify it instantly, no account required.'],
+      ];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       <Navbar />
-
       <main className="flex-1 py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-          {/* Header */}
           <div className="text-center space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E2136E]/15 border border-[#E2136E]/30 text-[#E2136E] text-xs font-bold">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E31B23]/15 border border-[#E31B23]/30 text-[#F97316] text-xs font-bold">
               <ShieldCheck className="w-4 h-4" />
               <span>{language === 'bn' ? 'স্বচ্ছতা ও ভেরিফিকেশন নীতিমালা' : 'Transparency & Verification Principles'}</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-              {language === 'bn' ? 'স্কিলপ্রুফ কীভাবে কাজ করে' : 'How SkillProof Operates'}
+              {language === 'bn' ? 'স্কিলপ্রুফ কীভাবে কাজ করে' : 'How SkillProof Works'}
             </h1>
             <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed">
               {language === 'bn'
-                ? 'বাংলাদেশের আইটি শিল্পে ভুয়া সিভি ও কুইজ সার্টিফিকেট দূর করে সরাসরি কোড রান ও ম্যানুয়াল রিভিউয়ের মাধ্যমে যোগ্যতাকে প্রতিষ্ঠিত করা।'
-                : 'Eliminating resume inflation in the Bangladeshi tech industry through automated code execution and human peer review.'}
+                ? 'ভুয়া সিভি ও সার্টিফিকেট দূর করে আপনার আসল কাজের মাধ্যমে যোগ্যতা প্রমাণ করার একটি স্বচ্ছ প্রক্রিয়া।'
+                : 'A transparent process that proves what you can really do through real work — for every career, in every field.'}
             </p>
           </div>
-
-          {/* Workflow Steps */}
           <div className="space-y-6">
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 hover:border-[#E2136E]/50 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-[#E2136E]/20 text-[#E2136E] font-extrabold flex items-center justify-center text-sm">
-                  ১
-                </span>
-                <h3 className="text-lg font-bold text-white">
-                  {language === 'bn' ? 'এআই ক্যারিয়ার প্রোফাইল তৈরি করুন' : 'Create AI Career Profile'}
-                </h3>
+            {steps.map(([number, title, description]) => (
+              <div key={number} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 hover:border-[#FF8A00]/50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-lg bg-[#FF8A00]/20 text-[#FF8A00] font-extrabold flex items-center justify-center text-sm">{number}</span>
+                  <h3 className="text-lg font-bold text-white">{title}</h3>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed pl-11">{description}</p>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed pl-11">
-                {language === 'bn'
-                  ? 'আপনার বর্তমান সিভি আপলোড করুন। আমাদের এআই পার্কসার আপনার অভিজ্ঞতা ও দক্ষতা স্বয়ংক্রিয়ভাবে সাজাবে এবং প্রয়োজনীয় ল্যাকিং চিহ্নিত করবে।'
-                  : 'Upload your existing CV/resume. Our AI parser extracts your experience, education, and skills. Identify missing skills and map out your targets without manual typing.'}
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 hover:border-[#E2136E]/50 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-[#E2136E]/20 text-[#E2136E] font-extrabold flex items-center justify-center text-sm">
-                  ২
-                </span>
-                <h3 className="text-lg font-bold text-white">
-                  {language === 'bn' ? '২৪ ঘণ্টা মডিউল ক্যারিয়ার রোডম্যাপ অনুসরণ করুন' : 'Follow 24-Hour Module Career Roadmap'}
-                </h3>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed pl-11">
-                {language === 'bn'
-                  ? 'আপনার টার্গেট ক্যাটাগরি (যেমন ফুলস্ট্যাক বা ব্যাকএন্ড) নির্বাচন করুন। প্রতি ২৪ ঘণ্টায় একটি করে মডিউল আনলক হবে যা ধারাবাহিক শেখার নিশ্চয়তা দেয়।'
-                  : 'Pick your target category (e.g. Frontend or Backend) and duration (15, 30, 60 days). Modules unlock exactly one by one every 24 hours to enforce structured daily learning.'}
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 hover:border-[#E2136E]/50 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-[#E2136E]/20 text-[#E2136E] font-extrabold flex items-center justify-center text-sm">
-                  ৩
-                </span>
-                <h3 className="text-lg font-bold text-white">
-                  {language === 'bn' ? 'কোডিং চ্যালেঞ্জ অথবা প্রজেক্ট সাবমিট করুন' : 'Pass Coding Challenges or Project Reviews'}
-                </h3>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed pl-11">
-                {language === 'bn'
-                  ? 'কোডফোর্সেস স্টাইল প্রবলেম সলভ করুন অথবা বাস্তব প্রজেক্ট তৈরি করে আপনার গিটহাব লিংক বা জিপ ফাইল সাবমিট করুন।'
-                  : 'Solve Codeforces/CodeMama-style algorithmic problems or build practical projects from scratch. Submit your GitHub URL or ZIP file for manual admin evaluation.'}
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 hover:border-[#E2136E]/50 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-[#E2136E]/20 text-[#E2136E] font-extrabold flex items-center justify-center text-sm">
-                  ৪
-                </span>
-                <h3 className="text-lg font-bold text-white">
-                  {language === 'bn' ? 'স্কিল পাসপোর্ট অর্জন ও আপগ্রেড করুন' : 'Receive & Upgrade Skill Passports'}
-                </h3>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed pl-11">
-                {language === 'bn'
-                  ? 'আপনার একক স্কিল পাসপোর্ট অনুযায়ী লেভেল ১, ২ বা ৩ স্ট্যাটাস আপডেট হবে যা যেকোনো নিয়োগকারীর সাথে শেয়ার করা যায়।'
-                  : 'Your single Skill Passport for that technology updates to Level 1, Level 2, or Level 3. Share your public passport URL directly with employers and recruiters.'}
-              </p>
-            </div>
+            ))}
+          </div>
+          <div className="pt-6 text-center">
+            <a href="/register" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#E31B23] to-[#F97316] text-white text-sm font-bold shadow-lg shadow-red-500/20 hover:opacity-95 transition-all">
+              {language === 'bn' ? 'আপনার যাত্রা শুরু করুন' : 'Start your journey'}
+              <ArrowRight className="w-4 h-4" />
+            </a>
           </div>
         </div>
       </main>
-
       <Footer />
     </div>
   );

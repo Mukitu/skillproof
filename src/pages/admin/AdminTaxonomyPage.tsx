@@ -43,14 +43,70 @@ const emptyForm: FormState = {
 const SAMPLE_TAXONOMY_JSON = [
   {
     "main_category": "Software Development",
+    "description": "Build, ship and maintain modern software products end to end.",
+    "icon": "Code2",
+    "status": "Active",
+    "display_order": 1,
     "sub_categories": [
       {
         "name": "Frontend Development",
-        "skills": ["HTML", "CSS", "JavaScript", "React"]
+        "description": "Build user interfaces for the web and mobile.",
+        "status": "Active",
+        "display_order": 1,
+        "skills": ["HTML", "CSS", "JavaScript", "React", "TypeScript"]
       },
       {
         "name": "Backend Development",
-        "skills": ["Node.js", "Express", "PostgreSQL"]
+        "description": "Design APIs, services and data pipelines.",
+        "status": "Active",
+        "display_order": 2,
+        "skills": ["Node.js", "Express", "PostgreSQL", "REST APIs"]
+      },
+      {
+        "name": "Mobile Development",
+        "description": "Build native and cross-platform mobile apps.",
+        "status": "Draft",
+        "display_order": 3,
+        "skills": ["React Native", "Flutter", "Swift", "Kotlin"]
+      }
+    ]
+  },
+  {
+    "main_category": "Design",
+    "description": "Visual, product and motion design skills.",
+    "icon": "Palette",
+    "status": "Active",
+    "display_order": 2,
+    "sub_categories": [
+      {
+        "name": "UI Design",
+        "description": "Design interfaces for web and mobile apps.",
+        "status": "Active",
+        "display_order": 1,
+        "skills": ["Figma", "UI Design", "Wireframing"]
+      },
+      {
+        "name": "UX Research",
+        "description": "Plan and run user research and validation.",
+        "status": "Active",
+        "display_order": 2,
+        "skills": ["User Interviews", "Usability Testing", "Surveys"]
+      }
+    ]
+  },
+  {
+    "main_category": "Data & AI",
+    "description": "Analytics, data engineering and applied AI.",
+    "icon": "Atom",
+    "status": "Draft",
+    "display_order": 3,
+    "sub_categories": [
+      {
+        "name": "Data Analysis",
+        "description": "Analyse data with spreadsheets, SQL and BI tools.",
+        "status": "Active",
+        "display_order": 1,
+        "skills": ["Excel", "SQL", "Power BI", "Tableau"]
       }
     ]
   }
@@ -75,9 +131,9 @@ function ActionButton({ title, onClick, disabled, danger, children }: {
   );
 }
 
-// ============================================================================
-// Page
-// ============================================================================
+
+
+
 export default function AdminTaxonomyPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
@@ -362,16 +418,16 @@ export default function AdminTaxonomyPage() {
   );
 }
 
-// ============================================================================
-// JSON Format modal
-// ============================================================================
+
+
+
 function JsonFormatModal({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const pretty = useMemo(() => JSON.stringify(SAMPLE_TAXONOMY_JSON, null, 2), []);
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(pretty); setCopied(true); setTimeout(() => setCopied(false), 1500); }
-    catch { /* ignore */ }
+    catch {  }
   };
 
   const download = () => {
@@ -405,19 +461,24 @@ function JsonFormatModal({ onClose }: { onClose: () => void }) {
           <p className="font-medium text-slate-700">Field reference</p>
           <ul className="mt-1 grid gap-1 sm:grid-cols-2">
             <li><code className="rounded bg-slate-100 px-1">main_category</code> — required, unique name</li>
-            <li><code className="rounded bg-slate-100 px-1">description</code> — optional</li>
-            <li><code className="rounded bg-slate-100 px-1">icon</code> — optional lucide icon name</li>
+            <li><code className="rounded bg-slate-100 px-1">description</code> — optional short description</li>
+            <li><code className="rounded bg-slate-100 px-1">icon</code> — optional lucide icon name (e.g. Code2, Palette)</li>
             <li><code className="rounded bg-slate-100 px-1">status</code> — optional, Active | Draft | Archived</li>
+            <li><code className="rounded bg-slate-100 px-1">display_order</code> — optional JSON number (e.g. 1, 2, 3)</li>
             <li><code className="rounded bg-slate-100 px-1">sub_categories</code> — optional array</li>
+            <li><code className="rounded bg-slate-100 px-1">name</code> — required inside sub_categories</li>
             <li><code className="rounded bg-slate-100 px-1">skills</code> — optional array of names</li>
           </ul>
+          <p className="mt-3 text-[11px] text-slate-500">
+            Top level is an array of categories. <code className="rounded bg-slate-100 px-1">display_order</code> must be a JSON number (not a string). All names are slugified; duplicates inside the payload or against existing rows are rejected.
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-// Lightweight JSON syntax highlighter (no external dependency).
+
 function SyntaxHighlight({ children }: { children: string }) {
   const tokens = useMemo(() => {
     const input = children.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -454,11 +515,11 @@ function SyntaxHighlight({ children }: { children: string }) {
   );
 }
 
-// ============================================================================
-// JSON sanitizer — runs in the browser before sending to Supabase.
-// Mirrors the server-side validation in fn_admin_import_taxonomy_json so the
-// admin sees clear field-level errors and never ships garbage to Postgres.
-// ============================================================================
+
+
+
+
+
 const ALLOWED_STATUSES = new Set(['Active', 'Archived', 'Draft']);
 
 interface RawSubCategory {
@@ -502,12 +563,7 @@ function asTrimmedString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/**
- * Coerce a JSON value into a valid integer for display_order.
- * - null / undefined / empty → 0
- * - pure JSON number that is finite and safe → number
- * - everything else → null (caller MUST throw with field context)
- */
+
 function coerceDisplayOrder(value: unknown, rowLabel: string, field = 'display_order'): number {
   if (value === undefined || value === null) return 0;
   if (typeof value === 'number') {
@@ -620,9 +676,9 @@ export function sanitizeTaxonomyPayload(obj: unknown): SanitizedCategory[] {
   return (obj as RawCategory[]).map((entry, i) => sanitizeCategory(entry, i));
 }
 
-// ============================================================================
-// JSON Import modal
-// ============================================================================
+
+
+
 function JsonImportModal({ onClose, onComplete, onError, busy: parentBusy }: { onClose: () => void; onComplete: (s: { categories: number; sub_categories: number; skills: number }) => Promise<void> | void; onError: (msg: string) => void; busy: boolean }) {
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<SanitizedCategory[] | null>(null);

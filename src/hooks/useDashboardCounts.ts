@@ -1,8 +1,4 @@
-/**
- * useDashboardCounts — returns the 16 admin dashboard counters.
- * All counts come from Supabase `count: 'exact', head: true` queries
- * plus the storage RPC `fn_storage_total_bytes()`.
- */
+
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
@@ -23,6 +19,10 @@ export interface DashboardCounts {
   storageBytes: number;
   todaysNewUsers: number;
   todaysSubmissions: number;
+  
+  totalCertificates: number;
+  activeCertificates: number;
+  revokedCertificates: number;
 }
 
 const empty: DashboardCounts = {
@@ -33,6 +33,7 @@ const empty: DashboardCounts = {
   activeJobs: 0, totalRoadmaps: 0,
   storageBytes: 0,
   todaysNewUsers: 0, todaysSubmissions: 0,
+  totalCertificates: 0, activeCertificates: 0, revokedCertificates: 0,
 };
 
 export function useDashboardCounts() {
@@ -53,6 +54,7 @@ export function useDashboardCounts() {
       totalPassports, pendingPassports, verifiedPassports,
       activeJobs, totalRoadmaps,
       todaysNewUsers, todaysSubmissions,
+      totalCertificates, activeCertificates, revokedCertificates,
       storageRpc,
     ] = await Promise.all([
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
@@ -85,6 +87,11 @@ export function useDashboardCounts() {
         .gte('created_at', startOfDay.toISOString()),
       supabase.from('universal_submissions').select('*', { count: 'exact', head: true })
         .gte('created_at', startOfDay.toISOString()),
+      supabase.from('course_certificates').select('*', { count: 'exact', head: true }),
+      supabase.from('course_certificates').select('*', { count: 'exact', head: true })
+        .eq('status', 'Active'),
+      supabase.from('course_certificates').select('*', { count: 'exact', head: true })
+        .eq('status', 'Revoked'),
       supabase.rpc('fn_storage_total_bytes' as any),
     ]);
 
@@ -110,6 +117,9 @@ export function useDashboardCounts() {
       storageBytes: typeof storageRpc.data === 'string' ? parseInt(storageRpc.data, 10) : (storageRpc.data ?? 0),
       todaysNewUsers: todaysNewUsers.count ?? 0,
       todaysSubmissions: todaysSubmissions.count ?? 0,
+      totalCertificates: totalCertificates.count ?? 0,
+      activeCertificates: activeCertificates.count ?? 0,
+      revokedCertificates: revokedCertificates.count ?? 0,
     });
     setLoading(false);
   }, []);

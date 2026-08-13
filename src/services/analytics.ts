@@ -1,10 +1,4 @@
-/**
- * Enterprise analytics service.
- *
- * The single source of truth is the `fn_analytics_dashboard()` RPC
- * which aggregates everything server-side in a single round-trip.
- * Realtime refresh is wired by hooking into the dashboard counts hook.
- */
+
 import { supabase } from '../lib/supabase';
 import { useRealtimeRefresh } from './realtime';
 import { useCallback, useEffect, useState } from 'react';
@@ -12,9 +6,22 @@ import { useCallback, useEffect, useState } from 'react';
 export interface AnalyticsDashboard {
   totals: AnalyticsTotals;
   popular_categories: Array<{ category_id: string | null; category_name: string | null; passed: number }>;
-  popular_skills: Array<{ skill_id: string | null; skill_name: string | null; count: number }>;
+  
+  popular_skills: Array<{ skill_id: string | null; skill_name: string | null; category_id?: string | null; count: number }>;
   monthly_growth: Array<{ month: string; users: number }>;
   daily_activity: Array<{ day: string; events: number }>;
+  recent_activity: Array<{
+    id: string;
+    kind: string;
+    title: string;
+    description: string | null;
+    entity_type: string | null;
+    entity_id: string | null;
+    profile_id: string | null;
+    actor_email: string | null;
+    actor_name: string | null;
+    created_at: string;
+  }>;
   computed_at: string;
 }
 
@@ -36,10 +43,16 @@ export interface AnalyticsTotals {
   total_verifications: number;
   passed_verifications: number;
   failed_verifications: number;
+  pending_verifications: number;
   employer_verifications: number;
   verifications_24h: number;
   active_jobs: number;
+  total_jobs: number;
   total_roadmaps: number;
+  published_roadmaps: number;
+  total_categories: number;
+  total_skills: number;
+  total_admin_permissions: number;
   notifications_7d: number;
 }
 
@@ -49,45 +62,36 @@ const EMPTY: AnalyticsDashboard = {
     total_passports: 0, pending_passports: 0, active_passports: 0, rejected_passports: 0,
     suspended_passports: 0, renewed_passports: 0, expired_passports: 0,
     total_assessments: 0, total_submissions: 0, total_verifications: 0,
-    passed_verifications: 0, failed_verifications: 0,
+    passed_verifications: 0, failed_verifications: 0, pending_verifications: 0,
     employer_verifications: 0, verifications_24h: 0,
-    active_jobs: 0, total_roadmaps: 0, notifications_7d: 0,
+    active_jobs: 0, total_jobs: 0,
+    total_roadmaps: 0, published_roadmaps: 0,
+    total_categories: 0, total_skills: 0, total_admin_permissions: 0,
+    notifications_7d: 0,
   },
   popular_categories: [],
   popular_skills: [],
   monthly_growth: [],
   daily_activity: [],
+  recent_activity: [],
   computed_at: '',
 };
 
-/**
- * Fetch the analytics dashboard payload (one round-trip).
- */
+
 export async function fetchAnalyticsDashboard(): Promise<AnalyticsDashboard> {
   const { data, error } = await supabase.rpc('fn_analytics_dashboard');
   if (error) throw error;
   return (data as AnalyticsDashboard) ?? EMPTY;
 }
 
-/** Pass rate as 0..1. */
+
 export function passRate(d: AnalyticsDashboard): number {
   const t = d.totals.passed_verifications + d.totals.failed_verifications;
   if (!t) return 0;
   return d.totals.passed_verifications / t;
 }
 
-/** Average score across all verifications (assumes 0..10 scale). */
-export function averageScore(d: AnalyticsDashboard): number {
-  // The RPC does not aggregate scores server-side; we surface this as a
-  // derived metric from the same call. If a finer number is needed the
-  // RPC can be extended — we always render 0 (never a hardcoded value).
-  return 0;
-}
 
-/**
- * React hook that loads the dashboard payload and subscribes to realtime
- * refreshes on every relevant table.
- */
 export function useAnalyticsDashboard() {
   const [data, setData] = useState<AnalyticsDashboard>(EMPTY);
   const [loading, setLoading] = useState(true);

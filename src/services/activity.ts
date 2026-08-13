@@ -1,8 +1,4 @@
-/**
- * Activity timeline service — user-facing event feed backed by
- * `activity_events`. The table is write-only from the client; users and
- * admins can read it. Rows are never updated or deleted.
- */
+
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getMyProfileId } from './profile';
@@ -34,11 +30,7 @@ export async function listUserActivity(profileId: string, limit = 100): Promise<
   return (data as ActivityEvent[]) ?? [];
 }
 
-/**
- * Write a permanent activity row. The table is RLS-protected so the
- * SECURITY DEFINER RPC `fn_log_activity` is the canonical write path —
- * we never INSERT directly from the client.
- */
+
 export async function logActivity(
   kind: ActivityEventKind,
   title: string,
@@ -67,7 +59,7 @@ export async function logActivity(
   }
 }
 
-/** React hook: load the current user's activity timeline and refresh on realtime. */
+
 export function useMyActivity(limit = 50) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,15 +81,16 @@ export function useMyActivity(limit = 50) {
   return { events, loading, refresh: load };
 }
 
-/**
- * Visual config for a kind → icon/color used by the timeline UI.
- */
+
 export const ACTIVITY_PRESET: Record<ActivityEventKind, { label: string; color: string; icon: string }> = {
   'account.created': { label: 'Account created', color: 'text-blue-600 bg-blue-50', icon: 'user-plus' },
   'profile.updated': { label: 'Profile updated', color: 'text-slate-700 bg-slate-50', icon: 'user' },
   'avatar.uploaded': { label: 'Avatar uploaded', color: 'text-indigo-600 bg-indigo-50', icon: 'image' },
+  'avatar.removed': { label: 'Avatar removed', color: 'text-slate-600 bg-slate-50', icon: 'image-off' },
   'resume.uploaded': { label: 'Resume uploaded', color: 'text-cyan-600 bg-cyan-50', icon: 'file-text' },
   'ai_career.generated': { label: 'AI career profile generated', color: 'text-fuchsia-600 bg-fuchsia-50', icon: 'sparkles' },
+  'ai_career.applied': { label: 'AI career profile applied', color: 'text-fuchsia-700 bg-fuchsia-50', icon: 'wand' },
+  'career_analysis.generated': { label: 'Career analysis generated', color: 'text-pink-600 bg-pink-50', icon: 'bar-chart-3' },
   'roadmap.started': { label: 'Roadmap started', color: 'text-purple-600 bg-purple-50', icon: 'map' },
   'roadmap.day_completed': { label: 'Roadmap day completed', color: 'text-violet-600 bg-violet-50', icon: 'check-circle' },
   'roadmap.completed': { label: 'Roadmap completed', color: 'text-emerald-600 bg-emerald-50', icon: 'flag' },
@@ -116,6 +109,9 @@ export const ACTIVITY_PRESET: Record<ActivityEventKind, { label: string; color: 
   'passport.downloaded': { label: 'Passport downloaded', color: 'text-orange-600 bg-orange-50', icon: 'download' },
   'job.applied': { label: 'Job application submitted', color: 'text-blue-700 bg-blue-50', icon: 'briefcase' },
   'job.saved': { label: 'Job saved', color: 'text-yellow-700 bg-yellow-50', icon: 'bookmark' },
+  'job.match_viewed': { label: 'Job match details viewed', color: 'text-violet-700 bg-violet-50', icon: 'bar-chart-2' },
+  'job_match.generated': { label: 'AI job matching completed', color: 'text-indigo-700 bg-indigo-50', icon: 'sparkles' },
+  'ai_mentor.message_sent': { label: 'AI mentor replied', color: 'text-fuchsia-600 bg-fuchsia-50', icon: 'sparkles' },
   'notification.sent': { label: 'Notification sent', color: 'text-slate-600 bg-slate-50', icon: 'bell' },
   'login.success': { label: 'Signed in', color: 'text-slate-600 bg-slate-50', icon: 'log-in' },
   'login.failed': { label: 'Failed sign-in', color: 'text-rose-600 bg-rose-50', icon: 'log-in' },

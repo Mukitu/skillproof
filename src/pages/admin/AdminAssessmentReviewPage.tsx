@@ -86,8 +86,10 @@ export default function AdminAssessmentReviewPage() {
     const score = Number(form.get('score'));
     const feedback = String(form.get('feedback') || '').trim();
 
-    if (!Number.isInteger(score) || score < 0 || score > 10) {
-      setError('Score must be an integer between 0 and 10.');
+    const maxScore = selected.task_max_marks ?? 10;
+    const passScore = selected.task_pass_marks ?? 6;
+    if (!Number.isInteger(score) || score < 0 || score > maxScore) {
+      setError(`Score must be an integer between 0 and ${maxScore}.`);
       return;
     }
     if (!feedback) {
@@ -101,10 +103,10 @@ export default function AdminAssessmentReviewPage() {
     const reviewedId = selected.id;
     try {
       await adminReviewSkillVerificationSubmission(reviewedId, score, feedback);
-      const outcome = score >= 6 ? 'Passed' : 'Failed';
+      const outcome = score >= passScore ? 'Passed' : 'Failed';
       setSuccess(`Review saved. The submission is now ${outcome}.`);
-      // Clear the selected submission so the form resets and the admin can
-      // move on to the next pending review without manual refresh.
+      
+      
       setSelected(null);
       await load();
     } catch (e: any) {
@@ -122,7 +124,7 @@ export default function AdminAssessmentReviewPage() {
     try {
       await adminMarkSubmissionUnderReview(selected.id);
       setSuccess('Submission marked as Under Review.');
-      // Refresh selected from the updated list so the form shows the new state.
+      
       await load();
     } catch (e: any) {
       setError(e?.message || 'Could not update status.');

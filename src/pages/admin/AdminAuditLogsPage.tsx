@@ -1,8 +1,4 @@
-/**
- * AdminAuditLogsPage — enterprise audit viewer.
- * Columns: When / Actor / Action / Table / Record ID / Old→New / IP / Browser.
- * Filters: action, entity_type, actor email, date range.
- */
+
 import { useEffect, useMemo, useState } from 'react';
 import { Search, ChevronDown, ChevronRight, Filter } from 'lucide-react';
 import { listAuditLogs, listAuditActions, listAuditEntityTypes } from '../../services/audit';
@@ -21,6 +17,9 @@ export default function AdminAuditLogsPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const pageSize = 25;
 
+  const [actionsList, setActionsList] = useState<string[]>([]);
+  const [entityTypesList, setEntityTypesList] = useState<string[]>([]);
+
   const load = async () => {
     try { setLogs(await listAuditLogs({
       action: action || undefined,
@@ -30,11 +29,32 @@ export default function AdminAuditLogsPage() {
       toDate: toDate || undefined,
     })); } catch (e) { console.error(e); }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    // Pull the full set of distinct actions/entity_types from the DB so the
+    // dropdowns are stable even after the user filters down to a single
+    // action. Falls back to deriving from the loaded page on error.
+    Promise.all([listAuditActions().catch(() => []), listAuditEntityTypes().catch(() => [])])
+      .then(([a, t]) => {
+        if (cancelled) return;
+        setActionsList(Array.isArray(a) ? a.filter(Boolean) : []);
+        setEntityTypesList(Array.isArray(t) ? t.filter(Boolean) : []);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => { void load(); }, [action, entityType, actorEmail, fromDate, toDate]);
   useRealtimeRefresh('audit_logs', load);
 
-  const actions = useMemo(() => Array.from(new Set(logs.map((l) => l.action).filter(Boolean))).sort(), [logs]);
-  const entityTypes = useMemo(() => Array.from(new Set(logs.map((l) => l.entity_type).filter(Boolean))).sort(), [logs]);
+  // Use the metadata-derived lists when the DB list is empty (e.g. RPC not
+  // present in this env). This keeps the dropdowns usable in both cases.
+  const actions = actionsList.length
+    ? actionsList
+    : Array.from(new Set(logs.map((l) => l.action).filter(Boolean))).sort();
+  const entityTypes = entityTypesList.length
+    ? entityTypesList
+    : Array.from(new Set(logs.map((l) => l.entity_type).filter(Boolean))).sort();
 
   const filtered = logs.filter((l) => {
     if (!search) return true;
@@ -63,29 +83,42 @@ export default function AdminAuditLogsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Audit Logs</h1>
-        <span className="text-sm text-gray-500">{filtered.length.toLocaleString()} entries</span>
+      <div className="relative overflow-hidden rounded-brand-lg border border-brand-border bg-white px-5 sm:px-6 py-5 shadow-brand-sm">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1"
+          style={{
+            background:
+              'linear-gradient(90deg,#E31B23 0%,#F97316 55%,#FF8A00 100%)',
+          }}
+        />
+        <div className="flex flex-wrap items-end justify-between gap-2 pt-1">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">Audit Logs</h1>
+            <p className="mt-1 text-sm text-slate-500 break-words">Enterprise audit trail of every admin and user action.</p>
+          </div>
+          <span className="text-xs sm:text-sm font-bold text-slate-500 shrink-0">{filtered.length.toLocaleString()} entries</span>
+        </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="grid gap-2 rounded-xl border bg-white p-4 md:grid-cols-3 lg:grid-cols-6">
+      {}
+      <div className="grid gap-2 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         <div className="relative lg:col-span-2">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search anywhere…" className="w-full rounded-lg border py-2 pl-9 pr-3" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search anywhere…" className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-[#E31B23] focus:outline-none focus:ring-2 focus:ring-red-100" />
         </div>
-        <input value={actorEmail} onChange={(e) => setActorEmail(e.target.value)} placeholder="Actor email contains…" className="rounded-lg border px-3 py-2" />
-        <select value={action} onChange={(e) => setAction(e.target.value)} className="rounded-lg border px-3 py-2">
+        <input value={actorEmail} onChange={(e) => setActorEmail(e.target.value)} placeholder="Actor email contains…" className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#E31B23] focus:outline-none focus:ring-2 focus:ring-red-100" />
+        <select value={action} onChange={(e) => setAction(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#E31B23] focus:outline-none focus:ring-2 focus:ring-red-100">
           <option value="">All actions</option>
           {actions.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
-        <select value={entityType} onChange={(e) => setEntityType(e.target.value)} className="rounded-lg border px-3 py-2">
+        <select value={entityType} onChange={(e) => setEntityType(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#E31B23] focus:outline-none focus:ring-2 focus:ring-red-100">
           <option value="">All tables</option>
           {entityTypes.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <div className="flex gap-1">
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border px-2 py-2 text-sm" />
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full rounded-lg border px-2 py-2 text-sm" />
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm focus:border-[#E31B23] focus:outline-none focus:ring-2 focus:ring-red-100" />
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm focus:border-[#E31B23] focus:outline-none focus:ring-2 focus:ring-red-100" />
         </div>
       </div>
 
@@ -134,7 +167,7 @@ export default function AdminAuditLogsPage() {
         </table>
       </div>
 
-      {/* Expanded diff rows */}
+      {}
       {expanded.size > 0 && (
         <div className="space-y-2">
           {slice.filter((l) => expanded.has(l.id)).map((l) => (
@@ -169,7 +202,9 @@ export default function AdminAuditLogsPage() {
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
-          Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+          {filtered.length === 0
+            ? 'No entries to display'
+            : `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, filtered.length)} of ${filtered.length}`}
         </p>
         <div className="flex gap-2">
           <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded border px-3 py-1 disabled:opacity-50">Prev</button>

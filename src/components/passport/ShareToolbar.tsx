@@ -1,13 +1,4 @@
-/**
- * Share toolbar — Copy Link, Share to LinkedIn, Facebook, X (Twitter),
- * Copy Verification URL.
- *
- * Renders as a compact button row that can be embedded in the public
- * passport page, the in-app passport card, or the employer portal.
- *
- * All buttons work directly from the canonical passport URL — no
- * third-party SDK required.
- */
+
 import { useState } from 'react';
 import {
   Check, Copy, ExternalLink, Facebook, Link2, Linkedin, Share2, Twitter,
@@ -18,7 +9,7 @@ import type { Profile, SkillPassport } from '../../types/database';
 interface ShareToolbarProps {
   passport: SkillPassport;
   profile?: Profile | null;
-  /** Compact (icon-only) or full layout. */
+  
   variant?: 'compact' | 'full';
   className?: string;
 }
@@ -44,7 +35,7 @@ export function ShareToolbar({ passport, profile, variant = 'full', className = 
   };
 
   const isCompact = variant === 'compact';
-  const btnBase = 'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#ED1C24]/40 disabled:opacity-50';
+  const btnBase = 'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E31B23]/40 disabled:opacity-50';
   const btnSize = isCompact ? 'p-2' : 'px-3 py-2 text-xs';
   const iconSize = isCompact ? 'w-4 h-4' : 'w-3.5 h-3.5';
 
@@ -132,7 +123,7 @@ export function ShareToolbar({ passport, profile, variant = 'full', className = 
                 title: `SkillProof Passport · ${passport.passport_number}`,
                 text: payload.text,
                 url: payload.shareUrl,
-              }).catch(() => { /* user cancelled */ });
+              }).catch(() => {  });
             } else {
               void handleCopyLink();
             }

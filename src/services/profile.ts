@@ -1,19 +1,13 @@
-/**
- * Profile service — read/update profile, resume upload.
- */
+
 import { supabase } from '../lib/supabase';
-import { APP_URL } from '../lib/supabase';
+import { apiUrl } from '../config/api';
 import { getAccessToken, getCurrentUser } from './auth';
 import { logActivity } from './activity';
 import type { Profile } from '../types/database';
 
 let cachedProfileId: string | null = null;
 
-/**
- * Get the profile row by profiles.id (the row PK, not the auth user id).
- * Used by the public verification page where we only know the owner
- * profile id and need name + avatar.
- */
+
 export async function getProfileByProfileId(profileId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('profiles')
@@ -24,10 +18,7 @@ export async function getProfileByProfileId(profileId: string): Promise<Profile 
   return (data as Profile) ?? null;
 }
 
-/**
- * Get the profile row for the current authenticated user.
- * Returns null if not signed in.
- */
+
 export async function getMyProfile(): Promise<Profile | null> {
   const user = await getCurrentUser();
   if (!user) return null;
@@ -38,15 +29,25 @@ export async function getMyProfile(): Promise<Profile | null> {
   return (data as Profile) ?? null;
 }
 
-/**
- * Resolve the current profile row id (profiles.id).
- * Cached for the session.
- * Returns null if not signed in / profile missing.
- */
+
 export async function getMyProfileId(): Promise<string | null> {
   if (cachedProfileId) return cachedProfileId;
   const profile = await getMyProfile();
   return profile?.id ?? null;
+}
+
+
+/**
+ * Get the signed-in user's stable public Profile ID (the 32-char hex
+ * string used as the canonical deep-link into the public verified CV).
+ * Falls back to fetching fresh if the cache is cold. Returns null when
+ * the user is not signed in.
+ */
+export async function getMyPublicProfileId(): Promise<string | null> {
+  const profile = await getMyProfile();
+  const id = (profile as any)?.public_profile_id ?? null;
+  if (typeof id === 'string' && id.trim()) return id.trim();
+  return null;
 }
 
 export async function updateProfile(patch: Partial<Profile>): Promise<Profile> {
@@ -66,14 +67,26 @@ export async function updateProfile(patch: Partial<Profile>): Promise<Profile> {
 }
 
 export async function uploadAvatar(file: File): Promise<string> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Not authenticated');
-  const ext = file.name.split('.').pop() || 'png';
-  const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from('profiles').upload(path, file, { upsert: true });
-  if (error) throw error;
-  const { data } = supabase.storage.from('profiles').getPublicUrl(path);
-  return data.publicUrl;
+  // SECURITY HARDENING (Phase 1): the legacy `profiles`-bucket avatar
+  // uploader is unsafe (no MIME / extension / size validation, and the
+  // server-side `profiles` bucket policies historically lacked a
+  // per-user prefix check). New callers MUST use the canvas-encoded
+  // avatar pipeline in `services/avatar.ts`, which uploads to the
+  // dedicated `avatars` bucket with MIME + size enforcement.
+  // This shim now forwards to the safer `avatar.ts` uploader so any
+  // existing call-site continues to work without re-introducing the
+  // server-side hole. New callers should import `uploadAvatar` directly
+  // from `services/avatar.ts`.
+  try {
+    if (typeof console !== 'undefined') {
+      console.warn(
+        '[security] services/profile.ts:uploadAvatar is deprecated; use services/avatar.ts instead.'
+      );
+    }
+  } catch {}
+  const { processAvatarFile, uploadAvatar: safeUploadAvatar } = await import('./avatar');
+  const processed = await processAvatarFile(file);
+  return safeUploadAvatar(processed);
 }
 
 export async function uploadResume(file: File): Promise<string> {
@@ -85,11 +98,28 @@ export async function uploadResume(file: File): Promise<string> {
   });
   if (!token) throw new Error('Not authenticated');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const res = await fetch(`${APP_URL}/api/storage/resume/sign-upload`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ fileName: safeName, mime: file.type || 'application/octet-stream', size: file.size }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiUrl('/api/storage/resume/sign-upload'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ fileName: safeName, mime: file.type || 'application/octet-stream', size: file.size }),
+    });
+  } catch (err: any) {
+    
+    
+    const isNet = err instanceof TypeError || /Failed to fetch|NetworkError/i.test(String(err?.message));
+    if (isNet) {
+      const e: any = new Error(
+        'AI service is temporarily unreachable. The backend did not respond. ' +
+        'Please try again in a minute. If this persists, the server is being restarted.'
+      );
+      e.code = 'BACKEND_UNREACHABLE';
+      e.cause = err;
+      throw e;
+    }
+    throw err;
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || 'Failed to obtain upload URL');

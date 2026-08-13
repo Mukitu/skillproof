@@ -1,0 +1,20 @@
+# Apache MIME override for the APK.
+# Without this, some shared cPanel hosts serve .apk as
+# `application/zip` and the browser saves the file as `*.zip`.
+<IfModule mod_mime.c>
+  AddType application/vnd.android.package-archive .apk
+</IfModule>
+
+# Don't let intermediaries cache an old APK. The browser cache is busted
+# by the `?v=<build-tag>` query parameter on the link itself; this header
+# stops CDN / proxy caches from holding on to a stale binary.
+<IfModule mod_headers.c>
+  Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  Header set Pragma "no-cache"
+  Header set Expires "0"
+</IfModule>
+
+# Belt + braces for hosts that don't load mod_mime.
+<FilesMatch "\.apk$">
+  ForceType application/vnd.android.package-archive
+</FilesMatch>

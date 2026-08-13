@@ -1,15 +1,4 @@
-/**
- * Skill Verification service — admin-authored templates + user submissions.
- *
- * Mirrors the architecture of `services/roadmaps.ts`:
- *   * Admin CRUD + publish + cascade-aware delete use SECURITY DEFINER RPCs.
- *   * The delete RPC returns a structured JSONB envelope so the UI can show
- *     dependent counts and prompt for cascade confirmation without leaking
- *     raw PostgreSQL errors.
- *   * User-side reads use RLS, so the service only has to fetch the data.
- *   * Submissions are unique per (user, task); the user RPC clears the old
- *     row in the same transaction when the user resubmits after a review.
- */
+
 import { supabase } from '../lib/supabase';
 import { getMyProfileId } from './profile';
 import { logActivity } from './activity';
@@ -20,8 +9,8 @@ import type {
   SkillVerificationMySubmission,
 } from '../types/database';
 
-// Re-export the data types so consumers can import them from this module without
-// reaching into `types/database.ts` directly.
+
+
 export type {
   SkillVerificationDeleteResult, SkillVerificationSubmission,
   SkillVerificationSubmissionStatus, SkillVerificationSubmissionWithContext,
@@ -29,9 +18,9 @@ export type {
   SkillVerificationMySubmission,
 } from '../types/database';
 
-// ============================================================================
-// Public + admin reads
-// ============================================================================
+
+
+
 
 export interface ListSkillVerificationTasksOptions {
   status?: SkillVerificationTaskStatus;
@@ -53,7 +42,7 @@ export async function listSkillVerificationTasks(
   if (opts?.search?.trim()) q = q.ilike('title', `%${opts.search.trim()}%`);
   const { data, error } = await q;
   if (error) {
-    // RLS will reject admin-only reads from non-admin sessions.
+    
     throw new Error(`Could not load verification tasks: ${error.message || 'Unknown error'}`);
   }
   return (data as SkillVerificationTask[]) ?? [];
@@ -66,9 +55,9 @@ export async function getSkillVerificationTask(id: string): Promise<SkillVerific
   return (data as SkillVerificationTask) ?? null;
 }
 
-// ============================================================================
-// Admin mutations
-// ============================================================================
+
+
+
 
 export interface SkillVerificationTaskInput {
   category_id: string;
@@ -125,12 +114,7 @@ export async function adminPublishSkillVerificationTask(
   return data as SkillVerificationTask;
 }
 
-/**
- * Cascade-aware delete. RPC returns JSONB describing the outcome:
- *   { ok: true,  cascaded, deleted: { submissions } }     — success
- *   { ok: false, blocked: true, dependents: { ... } }    — dependents exist
- *   { ok: false, code, error, template_id }              — any other failure
- */
+
 export async function adminDeleteSkillVerificationTask(
   id: string,
   cascade: boolean = false,
@@ -191,12 +175,7 @@ export async function adminImportSkillVerificationJson(
   return data as SkillVerificationImportSummary;
 }
 
-/**
- * Build the canonical export JSON for Skill Verification tasks. The shape
- * exactly matches the importer template. Category and sub-category are
- * intentionally NOT serialized — they live in the import header and the
- * selected header re-applies them to every imported assessment.
- */
+
 export function buildSkillVerificationExportJson(
   tasks: SkillVerificationTask[],
 ): { tasks: Array<Record<string, unknown>> } {
@@ -215,9 +194,9 @@ export function buildSkillVerificationExportJson(
   };
 }
 
-// ============================================================================
-// Admin review
-// ============================================================================
+
+
+
 
 export interface ListSkillVerificationSubmissionsOptions {
   status?: SkillVerificationSubmissionStatus;
@@ -265,11 +244,7 @@ export async function adminReviewSkillVerificationSubmission(
   return row;
 }
 
-/**
- * Move a 'Submitted' submission into 'Under Review' without scoring it yet.
- * The DB rejects the transition if the submission is already in any other
- * state, so this is safe to spam-click.
- */
+
 export async function adminMarkSubmissionUnderReview(
   submissionId: string,
 ): Promise<SkillVerificationSubmission> {
@@ -280,9 +255,9 @@ export async function adminMarkSubmissionUnderReview(
   return data as SkillVerificationSubmission;
 }
 
-// ============================================================================
-// User flow
-// ============================================================================
+
+
+
 
 export async function submitSkillVerificationTask(
   taskId: string,
@@ -295,7 +270,7 @@ export async function submitSkillVerificationTask(
   if (!trimmedAnswer && !trimmedUrl) {
     throw new Error('Please provide either a code/text answer or a project URL.');
   }
-  if (trimmedUrl && !/^https?:\/\//i.test(trimmedUrl)) {
+  if (trimmedUrl && !/^https?:\/\//.test(trimmedUrl)) {
     throw new Error('Project URL must start with http:// or https://.');
   }
   const { data, error } = await supabase.rpc('fn_user_submit_skill_verification', {

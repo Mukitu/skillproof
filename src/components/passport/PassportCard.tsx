@@ -3,30 +3,25 @@ import { Award, BadgeCheck, Calendar, Clock, ExternalLink, Hash, Star, Tag, XCir
 import { QRCodeSVG } from 'qrcode.react';
 import { LevelBadge } from './LevelBadge';
 import { PassportSeal } from './PassportSeal';
+import { VerifiedSkillBadges } from './VerifiedSkillBadges';
 import { daysUntilPassportExpiry, isPassportExpired } from '../../services/passports';
 import { getPublicPassportUrl } from '../../utils/passportUrl';
+import { getVerifiedSkills } from '../../services/verifiedSkills';
 import type { Profile, SkillPassport } from '../../types/database';
 
 type CardMode = 'full' | 'compact' | 'public';
 
 interface PassportCardProps {
   passport: SkillPassport;
-  /** Owning user profile — used for name, photo, id. */
+  
   profile?: Profile | null;
   mode?: CardMode;
   className?: string;
-  /** Optional override for the verification URL embedded in the QR. */
+  
   verificationUrl?: string;
 }
 
-/**
- * Premium enterprise SkillProof Passport card. One component powers:
- *   - user passport page (`mode='full'`)
- *   - dashboard mini-card (`mode='compact'`)
- *   - public verification page (`mode='public'`) — hides email/phone/feedback
- *
- * Responsive: stacks gracefully on ≤ 480px; QR and seal scale to fit.
- */
+
 export function PassportCard({
   passport,
   profile,
@@ -50,7 +45,10 @@ export function PassportCard({
 
   const fullName = profile?.full_name ?? 'SkillProof Member';
   const avatar = profile?.avatar_url ?? null;
-  const qrPayload = verificationUrl ?? passport.qr_code_data ?? buildDefaultQr(passport);
+  const qrPayload =
+    verificationUrl ??
+    passport.qr_code_data ??
+    buildDefaultQr(passport);
   const daysToExpiry = daysUntilPassportExpiry(passport);
 
   return (
@@ -60,7 +58,7 @@ export function PassportCard({
       data-status={passport.status}
       data-expired={expired ? 'true' : 'false'}
     >
-      {/* Holographic gradient background */}
+      {}
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-red-900 to-orange-800" aria-hidden />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.35),transparent_55%)]" aria-hidden />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.25),transparent_55%)]" aria-hidden />
@@ -73,7 +71,7 @@ export function PassportCard({
         aria-hidden
       />
 
-      {/* EXPIRED watermark */}
+      {}
       {expired && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <span className="rotate-[-18deg] rounded border-4 border-rose-400/70 px-6 py-2 text-5xl font-black uppercase tracking-[0.35em] text-rose-300/80 sm:text-6xl">
@@ -83,7 +81,7 @@ export function PassportCard({
       )}
 
       <div className="relative">
-        {/* === HEADER === */}
+        {}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 bg-white/5 px-5 py-3 backdrop-blur-sm sm:px-7 sm:py-4">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-amber-200/90">
             <Star size={14} className="text-amber-300" />
@@ -98,9 +96,9 @@ export function PassportCard({
           </div>
         </div>
 
-        {/* === BODY === */}
-        <div className={`grid gap-6 px-5 py-6 sm:px-7 sm:py-7 ${isCompact ? 'sm:grid-cols-1' : 'md:grid-cols-[1fr_auto]'}`}>
-          {/* Left column: identity */}
+        {}
+        <div className={`grid gap-6 px-5 py-6 sm:px-7 sm:py-7 ${isCompact ? 'sm:grid-cols-1' : 'md:grid-cols-[1fr_auto] md:items-start'}`}>
+          {}
           <div className="min-w-0 space-y-5">
             <div className="flex items-start gap-4">
               {avatar ? (
@@ -115,9 +113,9 @@ export function PassportCard({
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xl font-black leading-tight sm:text-2xl">{fullName}</p>
+                <p className="break-words text-xl font-black leading-tight sm:text-2xl">{fullName}</p>
                 {!isPublic && profile?.email && (
-                  <p className="truncate text-xs text-amber-100/80">{profile.email}</p>
+                  <p className="break-words text-xs text-amber-100/80">{profile.email}</p>
                 )}
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-amber-100/90">
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5">
@@ -132,7 +130,7 @@ export function PassportCard({
               </div>
             </div>
 
-            {/* Skill tags */}
+            {}
             {passport.skill_tags?.length > 0 && (
               <div>
                 <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">
@@ -148,14 +146,28 @@ export function PassportCard({
               </div>
             )}
 
-            {/* Stats grid */}
+            {}
+            {(() => {
+              const verifiedSkills = getVerifiedSkills(passport);
+              if (!verifiedSkills.length) return null;
+              return (
+                <div>
+                  <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">
+                    <Award size={11} /> Verified Skills
+                  </p>
+                  <VerifiedSkillBadges skills={verifiedSkills} variant="onDark" />
+                </div>
+              );
+            })()}
+
+            {}
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               <Stat label="Passed" value={String(passport.passed_count)} />
               <Stat label="Avg / 10" value={passport.average_marks ? Number(passport.average_marks).toFixed(1) : '—'} />
               <Stat label="Overall" value={passport.overall_score ? `${passport.overall_score}/100` : '—'} />
             </div>
 
-            {/* Dates */}
+            {}
             <div className="grid grid-cols-1 gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-[11px] sm:grid-cols-3 sm:gap-3">
               <DateRow
                 icon={<Calendar size={12} />}
@@ -188,7 +200,7 @@ export function PassportCard({
               />
             </div>
 
-            {/* Revisions feedback (pending) */}
+            {}
             {passport.status === 'pending_approval' && passport.revisions_requested && (
               <div className="rounded-xl border border-amber-300/40 bg-amber-300/10 p-3 text-xs text-amber-50">
                 <p className="mb-1 font-semibold uppercase tracking-wider text-amber-200">Revisions requested</p>
@@ -196,7 +208,7 @@ export function PassportCard({
               </div>
             )}
 
-            {/* Digital signature */}
+            {}
             {passport.digital_signature && !isCompact && (
               <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-200/80">
@@ -214,9 +226,9 @@ export function PassportCard({
             )}
           </div>
 
-          {/* Right column: seal + QR */}
+          {}
           {!isCompact && (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:min-w-[180px]">
+            <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 w-full md:w-auto md:min-w-[180px]">
               <PassportSeal size={104} animated={isActive} />
               {qrPayload ? (
                 <a
@@ -251,7 +263,7 @@ export function PassportCard({
   );
 }
 
-// ---------- Pieces ----------
+
 
 function VerifiedPill() {
   return (
@@ -319,6 +331,12 @@ function initials(name: string): string {
     .join('');
 }
 
+/**
+ * Build the default QR payload for a passport. The single public
+ * verification entry point is `/verify` — every Passport QR encodes
+ * `https://skillproof.top/verify?id=<passport_number>` so any scan
+ * lands directly on the verified CV.
+ */
 function buildDefaultQr(p: SkillPassport): string {
   return getPublicPassportUrl(p.passport_number);
 }

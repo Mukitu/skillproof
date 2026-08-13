@@ -1,9 +1,4 @@
-/**
- * Career roadmap service — Supabase is the only source of truth.
- *
- * This service supports a library of published templates, multiple independent
- * enrollments per user, rich day details and server-enforced completion.
- */
+
 import { supabase } from '../lib/supabase';
 import { getMyProfileId } from './profile';
 import type {
@@ -11,15 +6,17 @@ import type {
   Difficulty, RoadmapTemplate, RoadmapTemplateDay, RoadmapTemplateStatus,
 } from '../types/database';
 
-// ============================================================================
-// Admin: templates, days and JSON import
-// ============================================================================
+
+
+
 
 export async function listRoadmapTemplates(opts?: {
   status?: RoadmapTemplateStatus;
   categoryId?: string;
   subCategoryId?: string;
   search?: string;
+  
+  includeDeleted?: boolean;
 }): Promise<RoadmapTemplate[]> {
   let q = supabase
     .from('roadmap_templates')
@@ -29,6 +26,7 @@ export async function listRoadmapTemplates(opts?: {
   if (opts?.categoryId) q = q.eq('category_id', opts.categoryId);
   if (opts?.subCategoryId) q = q.eq('sub_category_id', opts.subCategoryId);
   if (opts?.search?.trim()) q = q.ilike('title', `%${opts.search.trim()}%`);
+  if (!opts?.includeDeleted) q = q.is('deleted_at', null);
   const { data, error } = await q;
   if (error) throw error;
   return (data as RoadmapTemplate[]) ?? [];
@@ -120,23 +118,19 @@ export async function adminSetRoadmapThumbnail(id: string, thumbnail_url: string
   return data as RoadmapTemplate;
 }
 
-/**
- * Cascade-aware roadmap template deletion.
- *
- * The server RPC returns JSONB describing either:
- *   { ok: true,  cascaded, deleted: { ... counts ... } }   — success
- *   { ok: false, blocked: true, dependents: { ... counts ... } }
- *                                                            — dependents exist,
- *                                                              caller must confirm
- *                                                              cascade=true
- *   { ok: false, code, error }                              — any other failure
- *
- * We never surface raw PostgreSQL errors to the UI.
- */
+
+export interface RoadmapDeleteOptions {
+  
+  preserveUserData?: boolean;
+  
+  cascade?: boolean;
+}
+
 export interface RoadmapDeleteResult {
   ok: boolean;
   cascaded?: boolean;
   blocked?: boolean;
+  mode?: 'preserve' | 'hard_delete';
   code?: string;
   error?: string;
   template_id?: string;
@@ -156,20 +150,25 @@ export interface RoadmapDeleteResult {
     template_days: number;
     affected_user_count: number;
   };
+  preserved?: {
+    enrollments: number;
+    progress: number;
+    certificates: number;
+  };
+  message?: string;
 }
 
 export async function adminDeleteRoadmapTemplate(
   id: string,
-  cascade: boolean = false,
+  options: RoadmapDeleteOptions = {},
 ): Promise<RoadmapDeleteResult> {
   const { data, error } = await supabase.rpc('fn_admin_delete_roadmap_template', {
     p_id: id,
-    p_cascade: cascade,
+    p_cascade: options.cascade ?? false,
+    p_preserve_user_data: options.preserveUserData ?? true,
   });
   if (error) {
-    // The RPC itself uses an EXCEPTION handler, but a transport-level error
-    // (e.g. network) still comes through here. Return a clean JSONB shape so
-    // callers don't have to special-case it.
+    
     return {
       ok: false,
       code: 'TRANSPORT_ERROR',
@@ -177,12 +176,7 @@ export async function adminDeleteRoadmapTemplate(
       template_id: id,
     };
   }
-  const result = (data ?? {}) as RoadmapDeleteResult;
-  if (!result.ok) {
-    // Surface the server's friendly message — never the raw PostgreSQL text.
-    return result;
-  }
-  return result;
+  return (data ?? {}) as RoadmapDeleteResult;
 }
 
 export interface RoadmapTemplateStats {
@@ -220,16 +214,16 @@ export interface TemplateDayInput {
   description?: string | null;
   estimated_minutes?: number;
   learning_objectives?: string[];
-  /** Ordered step-by-step lesson instructions. */
+  
   instructions?: string[];
   practice_tasks?: string[];
   notes?: string | null;
-  /** Structured external learning resources. */
+  
   resources?: Array<{ label?: string; url?: string; description?: string }>;
   video_title?: string | null;
   video_url?: string | null;
   video_provider?: 'youtube' | 'embed' | null;
-  // Legacy fields retained for existing callers/imports.
+  
   study_materials?: string[];
   extra_resources?: Array<{ label?: string; url?: string; description?: string }>;
   video_links?: string[];
@@ -282,9 +276,9 @@ export async function adminImportRoadmapJson(
   return data as ImportRoadmapJsonResult;
 }
 
-// ============================================================================
-// User: library + enrollments
-// ============================================================================
+
+
+
 
 export async function listPublishedRoadmapLibrary(opts?: {
   categoryId?: string;
@@ -302,6 +296,58 @@ export async function listMyRoadmapEnrollments(): Promise<CareerRoadmapEnrollmen
     .eq('user_id', profileId).order('created_at', { ascending: false });
   if (error) throw error;
   return (data as CareerRoadmapEnrollment[]) ?? [];
+}
+
+
+export interface EnrollmentWithTemplateStatus extends CareerRoadmapEnrollment {
+  template_deleted: boolean;
+  template_status: RoadmapTemplateStatus | null;
+}
+
+export async function listMyRoadmapEnrollmentsWithTemplateStatus(): Promise<EnrollmentWithTemplateStatus[]> {
+  const profileId = await getMyProfileId();
+  if (!profileId) return [];
+
+  
+  
+  
+  
+  
+  let data: any[] | null = null;
+  let lastError: any = null;
+
+  const rich = await supabase
+    .from('career_roadmap_enrollment')
+    .select('*, roadmap_templates!career_roadmap_enrollment_template_id_fkey(status, deleted_at)')
+    .eq('user_id', profileId)
+    .order('created_at', { ascending: false });
+
+  if (!rich.error) {
+    data = rich.data as any[];
+  } else {
+    lastError = rich.error;
+    const fallback = await supabase
+      .from('career_roadmap_enrollment')
+      .select('*, roadmap_templates!career_roadmap_enrollment_template_id_fkey(status)')
+      .eq('user_id', profileId)
+      .order('created_at', { ascending: false });
+    if (fallback.error) {
+      
+      throw fallback.error || lastError;
+    }
+    data = fallback.data as any[];
+  }
+
+  return (data ?? []).map((row) => {
+    const tpl = row.roadmap_templates;
+    return {
+      ...row,
+      
+      
+      template_deleted: !!tpl?.deleted_at,
+      template_status: tpl?.status ?? null,
+    } as EnrollmentWithTemplateStatus;
+  });
 }
 
 export async function getRoadmapEnrollment(id: string): Promise<CareerRoadmapEnrollment | null> {
@@ -335,11 +381,7 @@ export async function getEnrollmentProgress(enrollmentId: string): Promise<Caree
   return (data as CareerRoadmapProgress[]) ?? [];
 }
 
-/**
- * Rich details are loaded only via the server-enforced RPC — users can never
- * read public roadmap_template_days directly because the RLS policy is gated
- * to admins only. The function checks enrollment ownership + 24h unlock.
- */
+
 export async function getUnlockedDayDetails(
   enrollmentId: string, _templateId: string, dayNumber: number,
 ): Promise<RoadmapTemplateDay | null> {
@@ -360,7 +402,7 @@ export async function completeEnrollmentDay(
   return data as CareerRoadmapProgress;
 }
 
-// Backwards-compatible aliases for pages that still import the old names.
+
 export const getActiveRoadmapAssignment = async () => {
   const enrollments = await listMyRoadmapEnrollments();
   return enrollments.find((e) => e.status === 'active') ?? null;
@@ -370,9 +412,9 @@ export const getAssignmentProgress = getEnrollmentProgress;
 export const startRoadmapFromTemplate = enrollInRoadmap;
 export const completeRoadmapDay = completeEnrollmentDay;
 
-// ============================================================================
-// Thumbnail upload
-// ============================================================================
+
+
+
 const ROADMAP_BUCKET = 'roadmap-assets';
 
 export async function uploadRoadmapThumbnail(templateId: string, file: File): Promise<string> {

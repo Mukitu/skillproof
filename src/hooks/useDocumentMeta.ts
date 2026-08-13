@@ -1,14 +1,4 @@
-/**
- * React hook that updates the document <title> and Open Graph meta tags.
- *
- * SkillProof is a SPA — the index.html <head> is static. To make shared
- * links on LinkedIn / Facebook / X render the right preview, we inject
- * <meta> tags client-side as soon as the Passport data is loaded.
- *
- * For production-grade link previews, the recommended approach is also
- * to add a server-side pre-render (or a lightweight /api/og endpoint).
- * The server-side SEO route is wired up in server.ts (see /api/og).
- */
+
 import { useEffect } from 'react';
 import { getPublicPassportUrl } from '../utils/passportUrl';
 import type { Profile, SkillPassport } from '../types/database';
@@ -18,15 +8,15 @@ type MetaMap = Record<string, string>;
 interface UseDocumentMetaOptions {
   title: string;
   description: string;
-  /** Passport used to drive OG image, etc. */
+  
   passport?: SkillPassport | null;
-  /** Profile used for full name / avatar. */
+  
   profile?: Profile | null;
-  /** Optional canonical URL override. Defaults to the public passport URL. */
+  
   url?: string;
-  /** Optional image URL override (otherwise the avatar is used). */
+  
   image?: string | null;
-  /** Optional twitter handle / site handle. */
+  
   twitterHandle?: string;
 }
 
@@ -62,7 +52,7 @@ function removeMeta(attr: 'name' | 'property', key: string): void {
 
 export function setDocumentMeta(map: MetaMap, link?: { rel: string; href: string }): void {
   for (const [k, v] of Object.entries(map)) {
-    // Allow explicit "name:foo" or "property:foo" prefixes.
+    
     if (k.includes(':')) {
       const [attr, key] = k.split(':', 2) as ['name' | 'property', string];
       upsertMeta(attr, key, v);
@@ -91,12 +81,7 @@ export function clearDocumentMeta(): void {
   keys.forEach(({ attr, key }) => removeMeta(attr, key));
 }
 
-/**
- * Apply OG metadata for the current Passport page.
- *
- * Cleanup on unmount restores the original <title> so any subsequent
- * page navigation doesn't keep the wrong title frozen.
- */
+
 export function useDocumentMeta(opts: UseDocumentMetaOptions): void {
   useEffect(() => {
     if (typeof document === 'undefined') return;

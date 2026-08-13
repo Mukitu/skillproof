@@ -1,0 +1,151 @@
+# SkillProof Frontend — cPanel / LiteSpeed / Apache configuration
+# ================================================================
+#
+# This file MUST live at the web root (public_html/.htaccess) for the
+# production server. It is also required for `vite preview` to mimic the
+# same rewrite behaviour locally if you want to test deep links.
+#
+# What this file does:
+#   1. SPA fallback — every URL that doesn't match a real file or folder
+#      is rewritten to /index.html. This is required so that direct
+#      visits and page reloads work for React Router routes like
+#      /dashboard, /login, /verify, /passport/SP-BD-..., etc.
+#   2. Asset caching — versioned build assets under /assets/* get a
+#      1-year immutable cache, while index.html stays no-cache so a
+#      redeploy forces a refresh.
+#   3. Compression — turn on gzip/deflate for text payloads (most of the
+#      JS / CSS / HTML are gzip-friendly).
+#   4. MIME hint for /SkillProof.apk so the browser offers to install
+#      rather than download as a plain binary.
+#   5. Security headers — basic hardening (X-Content-Type-Options,
+#      Referrer-Policy, clickjacking protection).
+#   6. /skillproof-api/ is a sibling directory and is handled by Apache
+#      directly (it has its own .htaccess); we explicitly skip rewriting
+#      anything that starts with /skillproof-api/ to be safe even when
+#      mod_rewrite is processed before the alias match.
+
+# ─────────────────────────────────────────────────────────────────────
+# 1. Force HTTPS (optional — comment out if your edge proxy already
+#    terminates TLS, e.g. Cloudflare, or if you want both http/https)
+# ─────────────────────────────────────────────────────────────────────
+# <IfModule mod_rewrite.c>
+#     RewriteEngine On
+#     RewriteCond %{HTTPS} off
+#     RewriteCond %{HTTP:X-Forwarded-Proto} !https
+#     RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+# </IfModule>
+
+# ─────────────────────────────────────────────────────────────────────
+# 2. SPA fallback rewrite
+#    The order matters: every "skip if real path" rule must come first,
+#    then the API exclusion, then the catch-all RewriteRule.
+# ─────────────────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # If the requested path is a real file or directory on disk, do NOT
+    # rewrite — let Apache serve it as-is. This protects:
+    #   - /SkillProof.apk
+    #   - /index.html
+    #   - /assets/*, /brand/*, /partner/*, /apk/*
+    #   - any favicon, robots.txt, sitemap.xml, .well-known/...
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # If the request is for the sibling API directory, let it pass
+    # through to its own .htaccess unchanged. Without this rule, some
+    # Apache configs would still try to feed /skillproof-api/* through
+    # this file's rewrites before the subdirectory takes over.
+    RewriteRule ^skillproof-api/ - [L]
+
+    # If the request points at a file inside /assets/ and the file
+    # actually exists (e.g. hashed JS chunk), skip rewriting. This is
+    # technically redundant with the -f check above but is explicit and
+    # defensive against some LiteSpeed edge cases where a missing asset
+    # would otherwise fall through to index.html.
+    RewriteRule ^assets/.*$ - [L]
+
+    # Everything else — React Router deep links, /dashboard, /login,
+    # /verify/<id>, /passport/<id>, etc. — falls back to index.html so
+    # the client-side router can take over.
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# ─────────────────────────────────────────────────────────────────────
+# 3. MIME hint for the APK so Android hands it to the package installer.
+#    LiteSpeed / Apache usually sniff MIME correctly, but be explicit.
+# ─────────────────────────────────────────────────────────────────────
+<FilesMatch "\.apk$">
+    ForceType application/vnd.android.package-archive
+    Header set Content-Disposition "attachment"
+    # Allow the browser to fetch a fresh copy on every deploy so users
+    # don't get a stale APK after we upload a new build.
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    </IfModule>
+</FilesMatch>
+
+# ─────────────────────────────────────────────────────────────────────
+# 4. Static asset caching — versioned /assets/* files get a 1-year
+#    cache because Vite hashes the filename on every build, so a file
+#    change always triggers a fresh URL.
+#    index.html stays no-cache so a redeploy is picked up immediately.
+# ─────────────────────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+    # Long cache for /assets/* — filename includes the content hash, so
+    # this is safe and is what makes the SPA feel snappy after first load.
+    <FilesMatch "^assets/.*\.(js|css|woff2?|ttf|otf|eot|svg|png|jpg|jpeg|webp|gif|ico)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # Short cache for HTML — always revalidate so we can ship a new
+    # release without users having to hard-refresh.
+    <FilesMatch "\.html$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+
+    # /brand/* and /partner/* are versioned manually — give them a
+    # modest cache window (1 day) so logo changes propagate quickly.
+    <FilesMatch "^(brand|partner)/">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+</IfModule>
+
+# ─────────────────────────────────────────────────────────────────────
+# 5. Compression — enable gzip / deflate for text payloads.
+#    mod_deflate is standard on Apache; LiteSpeed has it built in.
+# ─────────────────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
+    AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json
+    AddOutputFilterByType DEFLATE application/xml application/xml+rss application/vnd.api+json
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ─────────────────────────────────────────────────────────────────────
+# 6. Security hardening
+# ─────────────────────────────────────────────────────────────────────
+
+# Block dotfiles — never serve .env, .htaccess, .git/*, etc.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Disable directory listings.
+Options -Indexes
+
+# Clickjacking + sniffing protection.
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+# Friendly error pages — pass-through to SPA so a 404 from the SPA
+# router renders our 404 component instead of Apache's ugly default.
+ErrorDocument 404 /index.html
+ErrorDocument 500 /index.html

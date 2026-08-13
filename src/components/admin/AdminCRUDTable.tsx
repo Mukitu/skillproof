@@ -1,17 +1,4 @@
-/**
- * AdminCRUDTable — enterprise shared table for every admin list page.
- *
- * Features (per-page configurable):
- *   • Search box (debounced inside via React state)
- *   • Status filter dropdown
- *   • Column sort (clickable headers)
- *   • Pagination (25 default)
- *   • Bulk select + Bulk action bar (Delete / Publish / Unpublish / Status change)
- *   • Per-row lifecycle buttons: Edit, Delete, Archive, Restore, Publish,
- *     Unpublish, Activate, Deactivate
- *   • Realtime refresh via useRealtimeRefresh(table, onRefresh)
- *   • Empty / loading states
- */
+
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Edit, Trash2, Archive, RotateCcw, Eye, EyeOff, CheckCircle, XCircle, Search } from 'lucide-react';
 import { useAdminTable, type SortDir } from '../../hooks/useAdminTable';
@@ -45,19 +32,19 @@ export interface LifecycleButton<T> {
   action: LifecycleAction;
   label: string;
   icon?: React.ComponentType<{ size?: number; className?: string }>;
-  /** Decide whether this button is shown for the row. */
+  
   visible?: (row: T) => boolean;
   color?: string;
-  /** Disable the button for the row. */
+  
   disabled?: (row: T) => boolean;
-  /** Required to call. */
+  
   onClick: (row: T) => void;
 }
 
 export interface BulkAction {
   label: string;
   variant: 'danger' | 'primary' | 'secondary';
-  /** Run for each id; return true on success. */
+  
   run: (ids: string[]) => Promise<boolean>;
 }
 
@@ -94,7 +81,7 @@ export function AdminCRUDTable<T extends { id: string }>(props: AdminCRUDTablePr
 
   const [bulkStatus, setBulkStatus] = useState<string>('');
 
-  // Realtime refresh.
+  
   useRealtimeRefresh(table, async () => {
     if (onRefresh) await onRefresh();
   });
@@ -129,7 +116,7 @@ export function AdminCRUDTable<T extends { id: string }>(props: AdminCRUDTablePr
 
   return (
     <div className="space-y-3">
-      {/* Toolbar */}
+      {}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search size={14} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -158,7 +145,7 @@ export function AdminCRUDTable<T extends { id: string }>(props: AdminCRUDTablePr
         </span>
       </div>
 
-      {/* Bulk action bar */}
+      {}
       {tbl.selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded border border-blue-200 bg-blue-50 px-3 py-2">
           <span className="text-sm font-medium text-blue-900">{tbl.selected.size} selected</span>
@@ -207,7 +194,7 @@ export function AdminCRUDTable<T extends { id: string }>(props: AdminCRUDTablePr
         </div>
       )}
 
-      {/* Table */}
+      {}
       <div className="overflow-x-auto rounded border border-gray-200 bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
@@ -292,7 +279,7 @@ export function AdminCRUDTable<T extends { id: string }>(props: AdminCRUDTablePr
         </table>
       </div>
 
-      {/* Pagination */}
+      {}
       <div className="flex items-center justify-between text-sm">
         <div className="text-gray-500">
           Page {tbl.page} of {tbl.totalPages}

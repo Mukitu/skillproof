@@ -11,12 +11,36 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      outDir: 'dist',
+      emptyOutDir: false, 
+      sourcemap: false,
+    },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      
+      
+      
+      
+  
+      proxy: {
+        '/api': {
+          // Forward all /api/* requests to the local PHP dev server.
+          // Run it with:
+          //   php -S 127.0.0.1:8765 -t deploy/_build/staging_api/api deploy/_build/staging_api/api/index.php
+          // (the index.php router handles every /api/* path under the
+          // staging_api directory).
+          target: 'http://127.0.0.1:8765',
+          changeOrigin: true,
+          secure: false,
+          ws: false,
+          // Rewrite so the PHP router — which expects /api/... — keeps
+          // working. The dev server's URL is the root; we pass the path
+          // through unchanged.
+          rewrite: (p) => p,
+        },
+      },
     },
   };
 });

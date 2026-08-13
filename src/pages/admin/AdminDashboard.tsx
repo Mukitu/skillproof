@@ -1,13 +1,10 @@
-/**
- * Admin Dashboard — 16 live metric cards.
- * Every count comes from Supabase head:true counts; storage via fn_storage_total_bytes RPC.
- * Realtime refresh wired to all relevant tables.
- */
+
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, UserCheck, UserX, Layers, Code2, ListChecks, ClipboardList,
   Award, BadgeCheck, BadgeAlert, Briefcase, Map, HardDrive, UserPlus, FileCheck2,
+  GraduationCap,
 } from 'lucide-react';
 import { DashboardCard } from '../../components/admin/DashboardCard';
 import { useDashboardCounts, formatBytes } from '../../hooks/useDashboardCounts';
@@ -31,20 +28,36 @@ export default function AdminDashboard() {
   useRealtimeRefresh(
     ['profiles', 'categories', 'skills', 'universal_assessments',
      'universal_submissions', 'skill_passports', 'jobs',
-     'roadmap_templates', 'audit_logs'],
+     'roadmap_templates', 'audit_logs',
+     'roadmap_module_exams', 'roadmap_module_exam_submissions',
+     'course_certificates', 'certificate_action_history',
+     'certificate_download_logs', 'certificate_verification_logs'],
     () => { void refresh(); void loadLists(); }
   );
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
+      <div className="relative overflow-hidden rounded-brand-lg border border-brand-border bg-white px-5 sm:px-6 py-5 shadow-brand-sm">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1"
+          style={{
+            background:
+              'linear-gradient(90deg,#E31B23 0%,#F97316 55%,#FF8A00 100%)',
+          }}
+        />
+        <h1
+          className="text-2xl sm:text-3xl font-black tracking-tight"
+          style={{ color: 'var(--brand-dark)' }}
+        >
+          Admin Dashboard
+        </h1>
+        <p className="mt-1 text-sm text-[var(--brand-muted)]">
           Live counters from Supabase. Updates automatically via realtime.
         </p>
       </div>
 
-      {/* 16 enterprise metric cards */}
+      {}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <DashboardCard icon={Users}        label="Total Users"             value={counts.totalUsers}            color="bg-blue-500"    href="/admin/users" />
         <DashboardCard icon={UserCheck}    label="Active Users"            value={counts.activeUsers}           color="bg-emerald-500" href="/admin/users" />
@@ -62,6 +75,9 @@ export default function AdminDashboard() {
         <DashboardCard icon={HardDrive}    label="Storage Usage"           value={formatBytes(counts.storageBytes)} color="bg-slate-500" subLabel={`${counts.storageBytes.toLocaleString()} bytes`} />
         <DashboardCard icon={UserPlus}     label="Today's New Users"       value={counts.todaysNewUsers}        color="bg-cyan-500"    subLabel="since 00:00" />
         <DashboardCard icon={FileCheck2}   label="Today's Submissions"     value={counts.todaysSubmissions}     color="bg-lime-600"    subLabel="since 00:00" href="/admin/assessment-review" />
+        <DashboardCard icon={GraduationCap} label="Total Certificates"      value={counts.totalCertificates}     color="bg-violet-500"  href="/admin/course-certificates" />
+        <DashboardCard icon={BadgeCheck}   label="Active Certificates"     value={counts.activeCertificates}    color="bg-emerald-600" href="/admin/course-certificates" />
+        <DashboardCard icon={BadgeAlert}   label="Revoked Certificates"    value={counts.revokedCertificates}   color="bg-rose-600"    href="/admin/course-certificates" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
