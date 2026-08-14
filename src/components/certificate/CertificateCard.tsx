@@ -1,10 +1,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
-import { Award, Calendar, CheckCircle2, Clock, Download, ExternalLink, FileDown, Hash, Image as ImageIcon, Link as LinkIcon, ShieldCheck, XCircle } from 'lucide-react';
+import { Award, Calendar, CheckCircle2, Clock, ExternalLink, Hash, Link as LinkIcon, ShieldCheck, XCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { downloadCertificatePng, downloadCertificatePdf } from '../../services/certificateDownload';
+
 import { getPublicPassportUrl } from '../../utils/passportUrl';
-import type { CourseCertificate, PublicCertificateBundle } from '../../types/database';
+import type { CourseCertificate } from '../../types/database';
 
 interface Props {
   certificate: CourseCertificate;
@@ -44,7 +44,6 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export function CertificateCard({ certificate, ownerPassportNumber }: Props) {
-  const [downloadBusy, setDownloadBusy] = useState<'pdf' | 'png' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // QR payload: the candidate's primary Passport ID, normalised. When
@@ -56,49 +55,6 @@ export function CertificateCard({ certificate, ownerPassportNumber }: Props) {
   }, [ownerPassportNumber, certificate.credential_number]);
 
   const hasQr = Boolean(publicUrl);
-
-  const onDownload = async (format: 'pdf' | 'png') => {
-    setDownloadBusy(format);
-    try {
-      
-      const bundle: PublicCertificateBundle = {
-        result: certificate.status === 'Active' ? 'verified' : 'revoked',
-        credential_number: certificate.credential_number,
-        verification_token: certificate.verification_token,
-        verification_uuid: certificate.verification_uuid,
-        verification_hash: certificate.verification_hash,
-        certificate_hash: certificate.certificate_hash,
-        status: certificate.status,
-        user_full_name: certificate.user_full_name,
-        user_avatar_url: certificate.user_avatar_url,
-        roadmap_title: certificate.roadmap_title,
-        category_name: certificate.category_name,
-        sub_category_name: certificate.sub_category_name,
-        roadmap_started_at: certificate.roadmap_started_at,
-        completion_date: certificate.completion_date,
-        issue_date: certificate.issue_date,
-        completion_duration_days: certificate.completion_duration_days,
-        admin_name_snapshot: certificate.admin_name_snapshot,
-        admin_feedback: certificate.admin_feedback,
-        revoked_reason: certificate.revoked_reason,
-        revoked_at: certificate.revoked_at,
-      };
-      if (format === 'pdf') {
-        await downloadCertificatePdf(bundle);
-        setToast('Premium PDF downloaded');
-      } else {
-        await downloadCertificatePng(bundle);
-        setToast('Premium PNG downloaded');
-      }
-      setTimeout(() => setToast(null), 2200);
-    } catch (e) {
-      console.error(e);
-      setToast('Download failed');
-      setTimeout(() => setToast(null), 2200);
-    } finally {
-      setDownloadBusy(null);
-    }
-  };
 
   useEffect(() => {
     return () => {
@@ -211,20 +167,8 @@ export function CertificateCard({ certificate, ownerPassportNumber }: Props) {
               <ExternalLink className="w-3.5 h-3.5" />
               View Verified CV
             </a>
-            <button
-              onClick={() => onDownload('pdf')}
-              disabled={downloadBusy !== null}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <Download className="w-3.5 h-3.5" /> {downloadBusy === 'pdf' ? '…' : 'PDF'}
-            </button>
-            <button
-              onClick={() => onDownload('png')}
-              disabled={downloadBusy !== null}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <ImageIcon className="w-3.5 h-3.5" /> {downloadBusy === 'png' ? '…' : 'PNG'}
-            </button>
+
+
             <button
               onClick={() => {
                 try { void navigator.clipboard?.writeText(publicUrl); setToast('URL copied'); setTimeout(() => setToast(null), 1500); } catch {  }

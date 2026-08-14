@@ -29,16 +29,21 @@ import {
   completeCompanyInterview,
   formatInterviewDateTime,
   formatRemainingDecisionTime,
-  getCompanyInterviewDecisionWindow,
   listCompanyInterviews,
   INTERVIEW_PLATFORM_LABELS,
   INTERVIEW_STATUS_LABELS,
   type CompanyInterviewRow,
   type InterviewStatus,
 } from '../../services/interviews';
-import { useRealtimeRefresh } from '../../services/realtime';
+// NOTE: useRealtimeRefresh is intentionally NOT imported here. The
+// Interviews page must be 100% manual-refresh — auto-realtime triggers
+// were causing the screen to flicker every time any interview/application
+// update fired on the server (the user reported that even when they
+// never touched the Refresh button, the page would still reload itself
+// and the screen would visibly flash). All data refresh now happens
+// exclusively through the explicit `Refresh` button at the top of the
+// page (and on initial mount + filter/search change).
 import { setCompanyApplicationStatus } from '../../services/applications';
-import { fetchCompanyOwnerProfileId } from '../../services/companies';
 
 type Section = 'upcoming' | 'completed' | 'cancelled';
 
@@ -379,7 +384,7 @@ const InterviewCard = React.memo(InterviewCardImpl, (prev, next) => {
 
 export const CompanyInterviewsPage: React.FC = () => {
   const { language } = useLanguage();
-  const { isApproved, company } = useCompanyAuth();
+  const { isApproved } = useCompanyAuth();
   const navigate = useNavigate();
   const t = (en: string, bn: string) => (language === 'bn' ? bn : en);
 
@@ -393,15 +398,9 @@ export const CompanyInterviewsPage: React.FC = () => {
   const [section, setSection] = useState<Section>('upcoming');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
-  const [decisionRemaining, setDecisionRemaining] = useState<Record<string, number | null>>({});
   const [confirmCancel, setConfirmCancel] = useState<CompanyInterviewRow | null>(null);
   const [confirmComplete, setConfirmComplete] = useState<CompanyInterviewRow | null>(null);
   const [confirmDecision, setConfirmDecision] = useState<{ row: CompanyInterviewRow; decision: 'Selected' | 'Rejected' } | null>(null);
-  // `notifications.user_id` references `public.profiles(id)`. The
-  // realtime filter needs that profile PK — not `auth.uid` and not
-  // `companies.user_id`. We resolve it once per page mount and feed it
-  // into the realtime subscription filter.
-  const [companyOwnerProfileId, setCompanyOwnerProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     const tmo = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -480,44 +479,25 @@ export const CompanyInterviewsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, debouncedSearch, t, rows.length]);
+  }, [statusFilter, debouncedSearch, t]);
 
   useEffect(() => { void load(); }, [load]);
 
-  // Resolve the Company owner's profiles.id (the FK target of
-  // notifications.user_id) once on mount. Cached for the lifetime of the
-  // page; refetched only if `company?.id` changes (e.g. after a re-auth).
-  useEffect(() => {
-    let cancelled = false;
-    if (!company?.id) {
-      setCompanyOwnerProfileId(null);
-      return;
-    }
-    (async () => {
-      const pid = await fetchCompanyOwnerProfileId();
-      if (!cancelled) setCompanyOwnerProfileId(pid);
-    })();
-    return () => { cancelled = true; };
-  }, [company?.id]);
-
-  useRealtimeRefresh(
-    ['company_interviews', 'company_applications', 'notifications'],
-    () => { void load(); },
-    // Scope to this company's rows so we don't receive every company's
-    // notifications/interviews over the wire.
-    //  - company_interviews has `company_id`
-    //  - company_applications has `company_id`
-    //  - notifications has `user_id` (references profiles.id, not auth.uid)
-    company?.id
-      ? {
-          company_interviews:    `company_id=eq.${company.id}`,
-          company_applications:  `company_id=eq.${company.id}`,
-          ...(companyOwnerProfileId
-            ? { notifications: `user_id=eq.${companyOwnerProfileId}` }
-            : {}),
-        }
-      : undefined,
-  );
+  // Auto-realtime refresh is disabled for this page. Data refresh now
+  // happens ONLY when:
+  //   1. The component first mounts
+  //   2. The user explicitly clicks the `Refresh` button
+  //   3. The user changes the search/status filter/section
+  //   4. The user performs an action (complete/cancel/decide) which then
+  //      re-invokes `load()` on its own
+  // This eliminates the screen flicker the user reported — every realtime
+  // INSERT/UPDATE on `company_interviews`, `company_applications` or
+  // `notifications` was firing a full re-fetch and remounting the card
+  // grid, even when the underlying data hadn't actually changed.
+  //
+  // (The `companyOwnerProfileId` resolver effect previously fed the
+  // realtime subscription filter; it is no longer needed and is removed
+  // so we don't make a stray RPC call on every page mount.)
 
   // Decoded section view: upcoming/completed/cancelled are derived from
   // status, not a server-side filter. The status filter is a refinement.
@@ -561,46 +541,49 @@ export const CompanyInterviewsPage: React.FC = () => {
     cancelled: { en: 'Cancelled / Closed',   bn: 'বাতিল / বন্ধ',          icon: XCircle,        tone: 'from-slate-400 to-slate-500' },
   };
 
-  // QA-COMPANY-TEST-001: only re-run the poll when the *set* of decision-
-  // pending ids changes — not on every parent re-render. This prevents the
-  // 60s cadence from cascading into a full card-grid remount.
-  const decisionPendingIdsKey = useMemo(
-    () => rows
-      .filter((r) => r.interview_status === 'decision_pending')
-      .map((r) => r.interview_id)
-      .sort()
-      .join(','),
+  // Decision-window countdown — COMPUTED LOCALLY from each row's
+  // `decision_deadline` ISO timestamp. We previously polled
+  // `getCompanyInterviewDecisionWindow` every 60 seconds, but that was
+  // causing the screen to visibly flicker (every poll updated parent
+  // state → React.memo on InterviewCard invalidated → entire card grid
+  // re-rendered). Computing locally means: zero network calls, zero
+  // parent-state churn, zero flicker.
+  //
+  // We tick every minute so the "Xd Yh remaining" text stays fresh
+  // — the tick only bumps a counter that drives a `useMemo`, NOT a
+  // setState on `rows` / `decisionRemaining`. We round to whole minutes
+  // (rather than seconds) so that two consecutive ticks only invalidate
+  // cards whose minute-displayed value actually changes — keeping the
+  // page visually quiet between ticks.
+  const decisionPendingRows = useMemo(
+    () => rows.filter((r) => r.interview_status === 'decision_pending'),
     [rows],
   );
-
+  const [nowTick, setNowTick] = useState<number>(() => Math.floor(Date.now() / 60_000));
   useEffect(() => {
-    const ids = decisionPendingIdsKey ? decisionPendingIdsKey.split(',') : [];
-    if (ids.length === 0) {
-      setDecisionRemaining({});
-      return;
+    const tmo = window.setInterval(
+      () => setNowTick(Math.floor(Date.now() / 60_000)),
+      60_000,
+    );
+    return () => window.clearInterval(tmo);
+  }, []);
+
+  const decisionRemaining = useMemo<Record<string, number | null>>(() => {
+    const out: Record<string, number | null> = {};
+    for (const r of decisionPendingRows) {
+      if (!r.decision_deadline) {
+        out[r.interview_id] = null;
+        continue;
+      }
+      const deadlineMs = Date.parse(r.decision_deadline);
+      if (Number.isNaN(deadlineMs)) {
+        out[r.interview_id] = null;
+        continue;
+      }
+      out[r.interview_id] = Math.max(0, Math.floor((deadlineMs - nowTick * 60_000) / 1000));
     }
-    let cancelled = false;
-    const fetchAll = async () => {
-      const next: Record<string, number | null> = {};
-      for (const id of ids) {
-        try {
-          const w = await getCompanyInterviewDecisionWindow(id);
-          next[id] = w.remaining_seconds ?? null;
-        } catch {
-          next[id] = null;
-        }
-      }
-      if (!cancelled) {
-        // Merge into existing map so we don't drop entries that were
-        // present on a previous tick but absent on this one (e.g. the
-        // status changed between ticks).
-        setDecisionRemaining((prev) => ({ ...prev, ...next }));
-      }
-    };
-    void fetchAll();
-    const tmo = window.setInterval(fetchAll, 60_000);
-    return () => { cancelled = true; window.clearInterval(tmo); };
-  }, [decisionPendingIdsKey]);
+    return out;
+  }, [decisionPendingRows, nowTick]);
 
   const handleComplete = async (row: CompanyInterviewRow) => {
     setBusyId(row.interview_id);

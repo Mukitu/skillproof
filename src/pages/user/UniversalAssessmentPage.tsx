@@ -1,7 +1,7 @@
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, CheckCircle2, ClipboardCheck, ExternalLink, Loader2, Lock, Send, Sparkles,
+  AlertCircle, CheckCircle2, ClipboardCheck, ExternalLink, HelpCircle, Loader2, Lock, Send, Sparkles, X,
 } from 'lucide-react';
 import { listCategories, listSubCategories } from '../../services/taxonomy';
 import {
@@ -149,14 +149,17 @@ export const UniversalAssessmentPage = () => {
               'linear-gradient(90deg,#E31B23 0%,#F97316 55%,#FF8A00 100%)',
           }}
         />
-        <div className="pt-1">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-50 border border-red-100 text-[11px] font-bold uppercase tracking-wider text-[#E31B23]">
-            <Sparkles className="w-3 h-3" /> Skill Verification
-          </span>
-          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">Universal Skill Verification</h1>
-          <p className="mt-1 text-sm text-slate-500 break-words">
-            Pick a category, choose an admin-published verification task, and submit your answer.
-          </p>
+        <div className="flex items-start justify-between gap-3 pt-1">
+          <div className="min-w-0 flex-1">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-50 border border-red-100 text-[11px] font-bold uppercase tracking-wider text-[#E31B23]">
+              <Sparkles className="w-3 h-3" /> Skill Verification
+            </span>
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">Universal Skill Verification</h1>
+            <p className="mt-1 text-sm text-slate-500 break-words">
+              Pick a category, choose an admin-published verification task, and submit your answer.
+            </p>
+          </div>
+          <SkillVerificationUserManualButton />
         </div>
       </div>
 
@@ -418,3 +421,149 @@ function StatusBadge({ status, score, max }: { status: SkillVerificationMySubmis
 }
 
 export default UniversalAssessmentPage;
+
+
+// ============================================================================
+// Skill Verification — animated User Manual popover (Bangla instructions)
+// ============================================================================
+function SkillVerificationUserManualButton() {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; placement: 'bottom' | 'top' }>({ top: 0, left: 0, placement: 'bottom' });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  const updatePosition = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const popW = 320;
+    const popH = popoverRef.current?.offsetHeight ?? 220;
+    const margin = 12;
+
+    let left = rect.right - popW;
+    if (left < margin) left = margin;
+    if (left + popW > window.innerWidth - margin) left = window.innerWidth - popW - margin;
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    let top = rect.bottom + margin;
+    let placement: 'bottom' | 'top' = 'bottom';
+    if (spaceBelow < popH + margin && rect.top - popH - margin > margin) {
+      top = rect.top - popH - margin;
+      placement = 'top';
+    }
+
+    setPos({ top, left, placement });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (buttonRef.current && buttonRef.current.contains(target)) return;
+      if (popoverRef.current && popoverRef.current.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, updatePosition]);
+
+  return (
+    <>
+      <div className="shrink-0">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label="User manual"
+          aria-expanded={open}
+          className="group relative inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#E31B23] to-[#F97316] px-3 py-1.5 text-xs font-bold text-white shadow-md ring-1 ring-orange-300/50 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95 sm:text-sm"
+        >
+          <span className="absolute inset-0 -z-10 rounded-full bg-orange-300 opacity-0 blur-md transition-opacity duration-500 group-hover:opacity-60" />
+          <span className="relative inline-flex h-5 w-5 items-center justify-center sm:h-6 sm:w-6">
+            <HelpCircle
+              size={16}
+              className="transition-all duration-500 group-hover:rotate-12 group-hover:scale-110 sm:hidden"
+            />
+            <HelpCircle
+              size={18}
+              className="hidden transition-all duration-500 group-hover:rotate-12 group-hover:scale-110 sm:block"
+            />
+            <span className="absolute -top-0.5 -right-0.5 inline-flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-300 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-400" />
+            </span>
+          </span>
+          <span className="hidden sm:inline">User Manual</span>
+          <span className="inline sm:hidden">Manual</span>
+        </button>
+      </div>
+
+      {open && (
+        <div
+          ref={popoverRef}
+          role="dialog"
+          aria-label="ব্যবহার নির্দেশিকা"
+          style={{ top: pos.top, left: pos.left }}
+          className="fixed z-[100] w-[min(20rem,calc(100vw-1.5rem))] animate-[fadeSlideIn_0.25s_ease-out] rounded-2xl border border-orange-200 bg-white/95 p-4 text-slate-800 shadow-2xl shadow-orange-900/20 backdrop-blur sm:w-80"
+        >
+          <span
+            className={`absolute h-3 w-3 rotate-45 border-l border-t border-orange-200 bg-white/95 ${
+              pos.placement === 'bottom' ? '-top-2 right-6' : '-bottom-2 right-6 border-b border-r border-l-0 border-t-0'
+            }`}
+          />
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#E31B23] to-[#F97316] text-white shadow">
+                <HelpCircle size={14} />
+              </span>
+              <h3 className="text-sm font-bold text-slate-900">User Manual</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+              className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <ol className="space-y-2 text-xs leading-relaxed text-slate-700">
+            <li className="flex gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">১</span>
+              <span><span className="font-semibold text-slate-900">ক্যাটাগরি</span> সিলেক্ট করুন। চাইলে <span className="font-semibold text-slate-900">সাব-ক্যাটাগরি</span> ও সিলেক্ট করতে পারেন।</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">২</span>
+              <span>আপনার পছন্দমতো যেকোনো <span className="font-semibold text-slate-900">টাস্কের উপরে ক্লিক</span> করুন — টাস্কটি সুন্দরভাবে পড়ুন।</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">৩</span>
+              <span>যদি ছোট <span className="font-semibold text-slate-900">কোড বা উত্তর</span> জাতীয় কিছু চায়, তাহলে বক্সে লিখুন।</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">৪</span>
+              <span>আর যদি <span className="font-semibold text-slate-900">প্রজেক্ট টাইপের</span> কিছু হয়, তাহলে <span className="font-semibold text-blue-600">GitHub</span>, <span className="font-semibold text-blue-600">Google Drive</span> বা অন্য যেকোনো <span className="font-semibold text-slate-900">বৈধ প্ল্যাটফর্মের লিংক</span> শেয়ার করুন।</span>
+            </li>
+          </ol>
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-[11px] leading-relaxed text-rose-800">
+            <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">!</span>
+            <span><span className="font-bold">সতর্কতা:</span> কোনো <span className="font-bold">ফিশিং/ভুয়া লিংক</span> শেয়ার করলে আপনার অ্যাকাউন্ট <span className="font-bold">সারাজীবনের জন্য সাসপেন্ড</span> করে দেওয়া হবে।</span>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 480" role="img" aria-label="Portrait of Mukitu Islam Nishat, Founder & Owner of SkillProof">
+  <defs>
+    <linearGradient id="bg-owner" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#1F2937"/>
+    </linearGradient>
+    <radialGradient id="glow-owner" cx="0.5" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#F97316" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#F97316" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand-owner" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E31B23"/>
+      <stop offset="0.55" stop-color="#F97316"/>
+      <stop offset="1" stop-color="#FF8A00"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="480" fill="url(#bg-owner)"/>
+  <rect width="400" height="480" fill="url(#glow-owner)"/>
+
+  <!-- Decorative ring -->
+  <circle cx="200" cy="200" r="160" fill="none" stroke="url(#brand-owner)" stroke-width="2" stroke-opacity="0.3"/>
+
+  <!-- Subtle silhouette placeholder (avatar circle) -->
+  <g transform="translate(80 60)">
+    <circle cx="120" cy="120" r="110" fill="#1F2937" stroke="url(#brand-owner)" stroke-width="2.5"/>
+    <!-- Initials -->
+    <text x="120" y="146" text-anchor="middle"
+          font-family="'Inter','Segoe UI',system-ui,sans-serif"
+          font-size="96" font-weight="800" fill="url(#brand-owner)">MN</text>
+  </g>
+
+  <!-- Caption -->
+  <g transform="translate(200 410)" text-anchor="middle"
+     font-family="'Inter','Segoe UI',system-ui,sans-serif">
+    <text font-size="20" font-weight="800" fill="#F8FAFC">Mukitu Islam Nishat</text>
+    <text y="28" font-size="13" font-weight="500" fill="#94A3B8">Founder & Owner · SkillProof</text>
+  </g>
+</svg>

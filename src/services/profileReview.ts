@@ -25,8 +25,12 @@ export interface ManualExperiencesRow {
 export interface ManualSkillRow {
   id?: string;
   name: string;
-  
+
   category: string;
+
+  /** Optional URL — primarily used by certifications for verify link,
+   *  but every category supports it so any chip can carry a URL. */
+  url?: string | null;
   created_at?: string | null;
 }
 
@@ -420,7 +424,7 @@ export async function loadSkills(): Promise<ManualSkillRow[]> {
 export async function saveSkills(rows: ManualSkillRow[]): Promise<ManualSkillRow[]> {
   const userId = await requireAuth();
 
-  
+
   const { data: existing, error: readErr } = await supabase
     .from('user_skills')
     .select('*')
@@ -430,8 +434,8 @@ export async function saveSkills(rows: ManualSkillRow[]): Promise<ManualSkillRow
   const existingById = new Map<string, ManualSkillRow>();
   for (const r of existingRows) if (r.id) existingById.set(r.id, r);
 
-  
-  
+
+
   const dedup = new Map<string, ManualSkillRow>();
   for (const r of rows) {
     const name = normField(r.name);
@@ -439,10 +443,12 @@ export async function saveSkills(rows: ManualSkillRow[]): Promise<ManualSkillRow
     const category = normField(r.category) || 'technical';
     const key = `${category.toLowerCase()}::${normKey(name)}`;
     if (!key) continue;
+    const cleanedUrl = normField(r.url ?? '');
     dedup.set(key, {
       id: r.id && r.id.length > 0 ? r.id : undefined,
       name,
       category: category.toLowerCase(),
+      url: cleanedUrl.length > 0 ? cleanedUrl : null,
     });
   }
   const incoming = Array.from(dedup.values());
@@ -461,9 +467,10 @@ export async function saveSkills(rows: ManualSkillRow[]): Promise<ManualSkillRow
         toInsert.push(r);
       } else if (
         normKey(prev.name) !== normKey(r.name) ||
-        normField(prev.category).toLowerCase() !== normField(r.category).toLowerCase()
+        normField(prev.category).toLowerCase() !== normField(r.category).toLowerCase() ||
+        normField(prev.url ?? '') !== normField(r.url ?? '')
       ) {
-        toUpdate.push({ id: r.id, patch: { name: r.name, category: r.category } });
+        toUpdate.push({ id: r.id, patch: { name: r.name, category: r.category, url: r.url ?? null } });
       }
     }
   }
@@ -474,6 +481,7 @@ export async function saveSkills(rows: ManualSkillRow[]): Promise<ManualSkillRow
       user_id: userId,
       name: r.name,
       category: r.category,
+      url: r.url ?? null,
     }));
     const { error } = await supabase.from('user_skills').insert(inserts);
     if (error) throw error;

@@ -109,11 +109,21 @@ export const LandingPage: React.FC = () => {
       {}
       <SEOHead
         pageKey="global"
-        defaults={{
-          title: 'SkillProof — Prove Your Skills, Advance Your Career',
+        path="/"
+        title="SkillProof — Verify Skills. Build Passports. Get Hired."
+        description="SkillProof is Bangladesh's AI-powered skill verification and career platform. Build a digital Skill Passport, follow structured career roadmaps, and connect with verified employers."
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: 'SkillProof — Verify Skills. Build Passports. Get Hired.',
+          url: 'https://skillproof.top/',
           description:
-            'SkillProof is a skill verification and career development platform from Bangladesh. Verify your real-world skills, grow them, and present them to employers through a verified Skill Passport.',
+            "Bangladesh's AI-powered skill verification and career platform. Build a digital Skill Passport, follow structured career roadmaps, and connect with verified employers.",
+          isPartOf: { '@id': 'https://skillproof.top/#website' },
+          about: { '@id': 'https://skillproof.top/#organization' },
+          inLanguage: 'en',
         }}
+        breadcrumbs={[{ name: 'Home', url: '/' }]}
       />
       <Navbar />
 

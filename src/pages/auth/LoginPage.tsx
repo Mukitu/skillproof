@@ -13,6 +13,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { Navbar } from '../../components/layout/Navbar';
+import { SEOHead } from '../../components/public/SEOHead';
 import { Footer } from '../../components/layout/Footer';
 import { SkillProofLogo } from '../../components/brand';
 import { SupportContactCard } from '../../components/common/SupportContactCard';
@@ -166,6 +167,13 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FFF8F6] text-slate-900 flex flex-col font-sans">
+      <SEOHead
+        pageKey="login"
+        path="/login"
+        title="Login | SkillProof"
+        description="Sign in to your SkillProof account to manage your career profile, skill passport, and roadmap."
+        robots="noindex,nofollow"
+      />
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center py-12 px-4">

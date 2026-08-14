@@ -19,10 +19,11 @@
  */
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, Loader2, Mail, Search, ShieldCheck, Sparkles, XCircle } from 'lucide-react';
+import { Building2, Loader2, Mail, Search, ShieldCheck, Sparkles, XCircle, Award, IdCard } from 'lucide-react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Footer } from '../../components/layout/Footer';
-import { CredentialPanel } from '../../components/verify/CredentialPanel';
+import { PublicProfileView } from '../../components/verify/profile/PublicProfileView';
+import { CompanyProfileCard } from '../../components/verify/profile/CompanyProfileCard';
 import { ShareButtons } from '../../components/verify/ShareButtons';
 import {
   subscribeToPublicCandidateVerification,
@@ -32,8 +33,10 @@ import { logPublicVerification } from '../../services/courseCertificates';
 import { getEmployerVerificationUrl, getPublicBaseUrl, normalizePassportId } from '../../utils/passportUrl';
 import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 import { API_BASE_URL, apiUrl } from '../../config/api';
+import { supabase } from '../../lib/supabase';
 import type {
   PublicCandidateVerification,
+  PublicCompanyVerification,
   PublicVerificationResponse,
 } from '../../types/database';
 
@@ -61,6 +64,7 @@ export const EmployerVerificationPortal = () => {
   const [inputValue, setInputValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [passport, setPassport] = useState<PublicCandidateVerification | null>(null);
+  const [company, setCompany] = useState<PublicCompanyVerification | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [realtimeFlash, setRealtimeFlash] = useState(false);
   const [metaCache, setMetaCache] = useState<Record<string, any>>({});
@@ -75,12 +79,14 @@ export const EmployerVerificationPortal = () => {
     const q = (raw ?? '').trim();
     if (!q) {
       setPassport(null);
+      setCompany(null);
       setError(null);
       return;
     }
     setBusy(true);
     setError(null);
     setPassport(null);
+    setCompany(null);
     try {
       const found: PublicVerificationResponse | null = await verifyCandidate(q);
       if (!found || found.kind === 'not_found') {
@@ -95,18 +101,40 @@ export const EmployerVerificationPortal = () => {
         return;
       }
 
-      // The /verify portal only renders the passport (CV) shape. If the
-      // RPC somehow returned a certificate or other shape, treat it as
-      // a not-found rather than render a different UI.
-      if (found.kind !== 'passport') {
+      // Company Gmail lookup → render the dedicated company card.
+      if (found.kind === 'company') {
+        setCompany(found as PublicCompanyVerification);
+        void logPublicVerification(
+          (found as PublicCompanyVerification).company?.email ?? q,
+          'verified',
+        ).catch(() => {});
+        return;
+      }
+
+      // The /verify portal renders the unified CV shape. After migration
+      // 20260814000021 the unified RPC also resolves Course Certificate
+      // credential numbers (SP-CERT-…, SPK-CERT-…) to the candidate's
+      // profile and emits a unified payload with a certificates[] array
+      // — so searching by Course Certificate ID works exactly like
+      // searching by Passport ID or email. Legacy 'certificate' kind is
+      // no longer surfaced by the unified RPC, but if a legacy endpoint
+      // still returns it we silently treat it as unified so the
+      // candidate still renders.
+      const f: any = found;
+      if (
+        f.kind !== 'passport'
+        && f.kind !== 'unified'
+        && f.kind !== 'private'
+        && f.kind !== 'certificate'
+      ) {
         setError('No matching SkillProof Passport found for that input.');
         return;
       }
 
       setPassport(found as PublicCandidateVerification);
       void logPublicVerification(
-        (found as PublicCandidateVerification).passport_number ?? q,
-        'verified',
+        (found as PublicCandidateVerification)?.passport_number ?? q,
+        (found as any)?.result === 'private' ? 'private' : 'verified',
       ).catch(() => {});
     } catch (e: any) {
       setError(e?.message || 'Verification lookup failed.');
@@ -156,18 +184,55 @@ export const EmployerVerificationPortal = () => {
     return unsub;
   }, [passport?.passport_number, verify]);
 
+  // Realtime: re-fetch the company card whenever the company row
+  // changes — guarantees admin edits in Supabase (company_name,
+  // logo_url, etc.) reflect immediately on the open /verify tab.
+  useEffect(() => {
+    const companyId = company?.company?.id;
+    const companyEmail = company?.company?.email;
+    if (!companyId || !companyEmail) return;
+    const channel = supabase
+      .channel(`public-company:${companyId}`)
+      .on(
+        'postgres_changes' as any,
+        {
+          event: '*',
+          schema: 'public',
+          table: 'companies',
+          filter: `id=eq.${companyId}`,
+        },
+        () => {
+          setRealtimeFlash(true);
+          void verify(companyEmail);
+          setTimeout(() => setRealtimeFlash(false), 2500);
+        },
+      )
+      .subscribe();
+    return () => {
+      try { supabase.removeChannel(channel); } catch { /* noop */ }
+    };
+  }, [company?.company?.id, company?.company?.email, verify]);
+
   const lookupMeta = lookupId ? metaCache[lookupId] : null;
   const candidateName = passport?.candidate?.full_name ?? '';
   const mainCategory = passport?.candidate?.main_category ?? 'Skill Passport';
 
+  // For company lookups we never produce a /passport share URL — the
+  // /verify result is the company card itself, not a passport.
+  const isCompanyLookup = Boolean(company);
+
   useDocumentMeta({
     title: lookupMeta?.title
-      ?? (passport?.passport_number
+      ?? (company
+        ? `Verified Company · ${company.company.name} · SkillProof`
+        : passport?.passport_number
         ? `Verification Result · ${passport.passport_number} · SkillProof`
         : 'Employer Verification Portal · SkillProof'),
     description:
       lookupMeta?.description
-      ?? 'Verify any SkillProof Passport by Passport ID or candidate email. Real-time lookup against the SkillProof database.',
+      ?? (company
+        ? `${company.company.name} is a verified SkillProof company account.`
+        : 'Verify any SkillProof Passport by Passport ID or candidate email. Real-time lookup against the SkillProof database.'),
     passport: passport?.passport_number
       ? ({
           passport_number: passport.passport_number,
@@ -183,7 +248,7 @@ export const EmployerVerificationPortal = () => {
     // Note: getEmployerVerificationUrl() now returns /passport, which is
     // the friendly alias the QR codes and share links use. The React
     // Router redirects /passport → /verify so the same page renders.
-    image: lookupMeta?.image ?? null,
+    image: lookupMeta?.image ?? company?.company?.logo_url ?? null,
   });
 
   const onSubmit = (e: FormEvent) => {
@@ -197,7 +262,8 @@ export const EmployerVerificationPortal = () => {
   };
 
   const samplePassportId = 'SP-BD-2026-000001';
-  const shareUrl = lookupId
+  const sampleCertId = 'SP-CERT-2026-000001';
+  const shareUrl = lookupId && !isCompanyLookup
     ? getPublicBaseUrl() + '/passport?id=' + encodeURIComponent(lookupId)
     : null;
 
@@ -224,12 +290,11 @@ export const EmployerVerificationPortal = () => {
                 Verify a SkillProof Passport
               </h1>
               <p className="text-sm text-slate-500 max-w-2xl mx-auto break-words">
-                No login required. Search by a candidate's{' '}
-                <span className="font-semibold text-slate-700">Passport ID</span>{' '}
-                (e.g.{' '}
-                <span className="font-mono text-slate-700">{samplePassportId}</span>)
-                or by their{' '}
-                <span className="font-semibold text-slate-700">email address</span>{' '}
+                <span className="font-semibold text-slate-700">No login required.</span>{' '}
+                Search by a candidate's{' '}
+                <span className="font-semibold text-slate-700">Passport ID</span>, their{' '}
+                <span className="font-semibold text-slate-700">email address</span>, or their{' '}
+                <span className="font-semibold text-slate-700">Course Certificate number</span>{' '}
                 to view their full verified profile.
               </p>
             </div>
@@ -248,11 +313,11 @@ export const EmployerVerificationPortal = () => {
                   type="text"
                   inputMode="email"
                   autoComplete="off"
-                  placeholder="Passport ID (e.g. SP-BD-829104) or candidate email"
+                  placeholder="Passport ID, candidate email, or Course Certificate number"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#E31B23]"
-                  aria-label="Passport ID or candidate email"
+                  aria-label="Passport ID, candidate email, or Course Certificate number"
                 />
               </div>
               <button
@@ -318,34 +383,89 @@ export const EmployerVerificationPortal = () => {
                   />
                 </div>
               )}
-              <CredentialPanel payload={passport} verificationUrl={shareUrl} />
+              <PublicProfileView payload={passport} verificationUrl={shareUrl} />
             </div>
           )}
 
-          {!passport && !busy && !error && (
-            <section className="max-w-4xl mx-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                How verification works
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li className="flex items-start gap-2">
-                  <Search className="w-3.5 h-3.5 mt-0.5 text-slate-400 shrink-0" />
-                  Paste a <span className="font-mono font-semibold text-slate-800">Passport ID</span> or
-                  a <span className="font-mono font-semibold text-slate-800">candidate email</span> and click
-                  <span className="font-semibold text-slate-800"> Verify Now</span>.
-                </li>
-                <li className="flex items-start gap-2">
-                  <Mail className="w-3.5 h-3.5 mt-0.5 text-slate-400 shrink-0" />
-                  Looking up by email returns every category Passport the candidate holds, plus their
-                  full verified CV.
-                </li>
-                <li className="flex items-start gap-2">
-                  <ShieldCheck className="w-3.5 h-3.5 mt-0.5 text-slate-400 shrink-0" />
-                  SkillProof privacy rules apply: phone and address fields are only shown when the
-                  candidate has explicitly opted in.
-                </li>
-              </ul>
+          {company && !busy && !passport && (
+            <div className="max-w-2xl mx-auto">
+              <CompanyProfileCard payload={company} />
+            </div>
+          )}
+
+          {!passport && !company && !busy && !error && (
+            <section className="max-w-4xl mx-auto space-y-5">
+              {/* Three lookup options — visually scannable cards. */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  How verification works
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  <span className="font-semibold text-slate-800">No login required.</span>{' '}
+                  Paste any of the three identifiers below and click{' '}
+                  <span className="font-semibold text-slate-800">Verify Now</span> to view the
+                  candidate's full verified profile.
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {/* Passport ID */}
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                        <IdCard className="h-4 w-4" />
+                      </span>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                        Passport ID
+                      </h3>
+                    </div>
+                    <p className="mt-1.5 font-mono text-[11px] text-slate-700 break-all">
+                      {samplePassportId}
+                    </p>
+                  </div>
+
+                  {/* Email */}
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
+                        <Mail className="h-4 w-4" />
+                      </span>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700">
+                        Email
+                      </h3>
+                    </div>
+                    <p className="mt-1.5 font-mono text-[11px] text-slate-700 break-all">
+                      candidate@example.com
+                    </p>
+                  </div>
+
+                  {/* Course Certificate */}
+                  <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-orange-100 text-orange-700">
+                        <Award className="h-4 w-4" />
+                      </span>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-orange-700">
+                        Course Certificate
+                      </h3>
+                    </div>
+                    <p className="mt-1.5 font-mono text-[11px] text-slate-700 break-all">
+                      {sampleCertId}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Privacy notice — kept slim so it doesn't dominate the page. */}
+              <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs text-slate-600">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                <p>
+                  <span className="font-semibold text-slate-800">Privacy:</span> SkillProof privacy
+                  rules apply — phone, address, and personal fields are only shown when the candidate
+                  has explicitly opted in. Email-based lookups return every category Passport the
+                  candidate holds plus their full verified CV and any issued Course Certificates.
+                </p>
+              </div>
             </section>
           )}
         </div>

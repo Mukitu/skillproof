@@ -32,6 +32,7 @@ import {
 import { getMatchForJob } from '../../services/jobMatch';
 import { supabase } from '../../lib/supabase';
 import type { JobMatchResult } from '../../types/database';
+import { SEOHead } from '../../components/public/SEOHead';
 
 interface SkillSummary {
   skill_id: string;
@@ -172,12 +173,60 @@ export const CompanyJobDetailPublicPage: React.FC = () => {
     }
   };
 
+  // Build dynamic meta for the job
+  const jobTitleForMeta = detail?.job?.title ?? 'Job Details';
+  const companyNameForMeta = detail?.company?.company_name ?? 'Verified Employer';
+  const pageTitle = detail?.job
+    ? `${jobTitleForMeta} at ${companyNameForMeta} | SkillProof Jobs`
+    : 'Job Details | SkillProof';
+  const pageDesc = detail?.job
+    ? `${jobTitleForMeta} — ${detail.job.employment_type ? detail.job.employment_type.replace(/_/g, ' ') : ''} role at ${companyNameForMeta} on SkillProof.`
+    : 'View job details on SkillProof — Bangladesh\'s verified recruitment platform.';
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white border border-red-100 rounded-3xl shadow-brand-sm p-5 sm:p-6 relative overflow-hidden">
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#E31B23] via-[#F97316] to-[#FF8A00]" />
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+    <>
+      <SEOHead
+        pageKey="company-jobs-detail"
+        path="/company-jobs/detail"
+        title={pageTitle}
+        description={pageDesc}
+        breadcrumbs={[
+          { name: 'Home', url: '/' },
+          { name: 'Company Jobs', url: '/company-jobs' },
+          { name: jobTitleForMeta, url: '/company-jobs/detail' },
+        ]}
+        jsonLd={
+          detail?.job
+            ? {
+                '@context': 'https://schema.org',
+                '@type': 'JobPosting',
+                title: detail.job.title,
+                description: detail.job.description ?? pageDesc,
+                datePosted: detail.job.created_at ?? new Date().toISOString(),
+                employmentType: detail.job.employment_type ?? undefined,
+                hiringOrganization: {
+                  '@type': 'Organization',
+                  name: companyNameForMeta,
+                  sameAs: 'https://skillproof.top/',
+                },
+                jobLocation: {
+                  '@type': 'Place',
+                  address: {
+                    '@type': 'PostalAddress',
+                    addressCountry: 'BD',
+                    addressLocality: detail.job.location ?? undefined,
+                  },
+                },
+                industry: detail.job.category_label ?? undefined,
+              }
+            : undefined
+        }
+      />
+      <div className="space-y-6">
+        <div className="bg-white border border-red-100 rounded-3xl shadow-brand-sm p-5 sm:p-6 relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#E31B23] via-[#F97316] to-[#FF8A00]" />
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
             <Link
               to="/company-jobs"
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-[11px] font-bold"
@@ -369,6 +418,7 @@ export const CompanyJobDetailPublicPage: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

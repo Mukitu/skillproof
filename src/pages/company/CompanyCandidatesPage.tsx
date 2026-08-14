@@ -7,6 +7,7 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   Eye,
   Filter,
   GraduationCap,
@@ -104,6 +105,7 @@ interface CandidateCardProps {
   inviteStatus: CandidateInviteStatus | null;
   inviting: boolean;
   onView: (row: CandidateListRow) => void;
+  onViewMore: (row: CandidateListRow) => void;
   onInvite: (row: CandidateListRow) => void;
   onMessage: (row: CandidateListRow) => void;
 }
@@ -115,6 +117,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
   inviteStatus,
   inviting,
   onView,
+  onViewMore,
   onInvite,
   onMessage,
 }) => {
@@ -248,6 +251,16 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
         >
           <Eye className="w-3.5 h-3.5" />
           <span>{language === 'bn' ? 'প্রোফাইল' : 'View'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onViewMore(row)}
+          title={language === 'bn' ? 'SkillProof /verify তে সম্পূর্ণ যাচাইকৃত CV দেখুন' : 'Open full verified CV on SkillProof /verify'}
+          className="inline-flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-[11px]"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">{language === 'bn' ? 'আরও দেখুন' : 'View more'}</span>
         </button>
 
         <button
@@ -859,6 +872,7 @@ export const CompanyCandidatesPage: React.FC = () => {
                   inviteStatus={inviteMap[row.profile_id] ?? null}
                   inviting={invitingId === row.profile_id}
                   onView={(r) => openProfile(r)}
+                  onViewMore={(r) => openProfile(r)}
                   onInvite={(r) => handleInvite(r)}
                   onMessage={handleMessage}
                 />

@@ -6,6 +6,7 @@ import { Lock, ArrowRight, AlertCircle, Loader2, CheckCircle2 } from 'lucide-rea
 import { Navbar } from '../../components/layout/Navbar';
 import { Footer } from '../../components/layout/Footer';
 import { SkillProofLogo } from '../../components/brand';
+import { SEOHead } from '../../components/public/SEOHead';
 import type { NormalizedAuthError } from '../../services/authErrors';
 
 export const ResetPasswordPage: React.FC = () => {
@@ -71,6 +72,13 @@ export const ResetPasswordPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FFF8F6] text-slate-900 flex flex-col font-sans">
+      <SEOHead
+        pageKey="reset-password"
+        path="/reset-password"
+        title="Reset Password | SkillProof"
+        description="Set a new password for your SkillProof account."
+        robots="noindex,nofollow"
+      />
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center py-12 px-4">

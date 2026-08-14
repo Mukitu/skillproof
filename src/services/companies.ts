@@ -151,14 +151,29 @@ export async function removeCompanyLogo(companyId: string, filePath: string): Pr
   }
 }
 
-export async function changeCompanyPassword(newPassword: string): Promise<void> {
+export async function changeCompanyPassword(
+  newPassword: string,
+  currentPassword: string,
+): Promise<void> {
   if (!newPassword || newPassword.length < 8) {
     throw new Error('Password must be at least 8 characters.');
   }
-  const { error } = await companyClientSupabase.rpc('fn_company_change_password', {
+  if (!currentPassword) {
+    throw new Error('Current password is required.');
+  }
+  if (newPassword === currentPassword) {
+    throw new Error('New password must differ from the current password.');
+  }
+  const { data, error } = await companyClientSupabase.rpc('fn_company_change_password', {
     p_new_password: newPassword,
+    p_current_password: currentPassword,
   });
   if (error) throw error;
+  // RPC also returns ok/error JSON — surface it for clean UI messages.
+  const payload = (data ?? null) as { ok?: boolean; error?: string; code?: string } | null;
+  if (payload && payload.ok === false) {
+    throw new Error(payload.error || 'Could not change password.');
+  }
 }
 
 export interface CompanyDocument {

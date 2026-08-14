@@ -67,6 +67,15 @@ export interface Profile {
   show_gender_on_verified_profile?: boolean;
   show_dob_on_verified_profile?: boolean;
   show_address_on_verified_profile?: boolean;
+  // Newer (positive) toggles introduced by migration
+  // 20260814000008_verified_profile_privacy_controls.sql.
+  // The legacy hide_* columns above are preserved for back-compat —
+  // every UI / RPC reads the new positive toggles first.
+  allow_employer_verification?: boolean;
+  show_ai_career_profile?: boolean;
+  show_public_evidence?: boolean;
+  show_career_activity?: boolean;
+  show_assessment_history?: boolean;
   // Extended fields (may not yet be saved by all users; nullable).
   current_organization?: string | null;
   total_experience?: number | null;
@@ -277,6 +286,9 @@ export interface SkillPassport {
   
   
   privacy_settings: Record<string, boolean> | null;
+  /** True when the candidate has marked this as their primary Passport.
+   *  At most ONE passport per user can have is_primary = true. */
+  is_primary?: boolean;
 }
 
 
@@ -361,7 +373,87 @@ export interface PublicVerifiedSkill {
   pass_status: string;
   verified_at: string | null;
   primary_skill: string | null;
+  /** The specific SkillProof assessment/task title that verified this
+   *  skill — surfaced on the public CV so recruiters see what was
+   *  actually tested (e.g. "React Hooks Live Assessment"). */
+  task_title?: string | null;
 }
+
+/**
+ * Personal information block — privacy-gated per-field values returned
+ * by the verify RPC. Each field is `null` (and the corresponding
+ * `show_*` flag is `false`) when the candidate hasn't enabled it on
+ * their settings.
+ */
+export interface PublicPersonalInformation {
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  gender: string | null;
+  date_of_birth: string | null;
+  address: string | null;
+  country: string | null;
+  district: string | null;
+  division: string | null;
+  current_organization: string | null;
+  email_verified: boolean | null;
+  // Privacy flag mirrors — so the CV can show a "Hidden by candidate"
+  // notice when a field is private.
+  show_phone: boolean | null;
+  show_gender: boolean | null;
+  show_dob: boolean | null;
+  show_address: boolean | null;
+}
+
+/**
+ * Career information block — headline, profession, current position,
+ * organization, experience, bio. Returned by the verify RPC so the
+ * CV has a single structured object instead of fragmenting across
+ * candidate.* fields.
+ */
+export interface PublicCareerInformation {
+  headline: string | null;
+  profession: string | null;
+  current_position: string | null;
+  current_organization: string | null;
+  experience_years: number | null;
+  total_experience: number | null;
+  experience_summary: string | null;
+  bio: string | null;
+}
+
+/**
+ * Assessment history item — every submission the candidate has on
+ * file (Passed / Failed / Pending Review). Includes the assessment
+ * (task) title, skill name, category, marks/score, status and event
+ * timestamp. Drives the "Every Task — Marks Earned" section on the
+ * public CV.
+ */
+export interface PublicAssessmentHistoryItem {
+  id: string;
+  user_id: string;
+  task_id: string;
+  score: number | null;
+  marks: number | null;
+  task_max_marks: number | null;
+  status: string;
+  feedback: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  task_title: string | null;
+  skill_name: string | null;
+  category_name: string | null;
+  sub_category_name: string | null;
+  event_at: string | null;
+}
+
+/** Verification tier derived from passed_count + avg score. */
+export type PublicVerificationCategory =
+  | 'Unranked'
+  | 'Bronze'
+  | 'Silver'
+  | 'Gold'
+  | 'Platinum';
 
 export interface PublicVerifiedCategorySkill {
   skill_name: string;
@@ -405,24 +497,24 @@ export interface PublicCompletedRoadmap {
   certificate_status: string | null;
 }
 
-export interface PublicAssessmentHistoryItem {
-  task_title: string;
-  category: string | null;
-  sub_category: string | null;
-  score: number | null;
-  marks: number | null;
-  pass_status: string;
-  submitted_at: string | null;
-  reviewed_at: string | null;
-}
-
+/**
+ * PublicAssessmentSummary — the per-candidate assessment stats the
+ * verify RPC returns under `assessment_summary`.
+ *
+ * Both naming variants are accepted because the SQL function returns
+ * `total_assessments` while older shapes used `total_attempts`. The
+ * Public CV render reads whichever is present.
+ */
 export interface PublicAssessmentSummary {
-  total_attempts: number;
-  passed: number;
-  failed: number;
-  average_score: number | null;
-  strength_areas: string[];
-  improvement_areas: string[];
+  total_attempts?: number;
+  total_assessments?: number;
+  passed?: number;
+  failed?: number;
+  average_score?: number | null;
+  strength_areas?: string[];
+  improvement_areas?: string[];
+  strongest_skill?: string | null;
+  improvement_skill?: string | null;
 }
 
 export interface PublicAiCareerProfile {
@@ -518,6 +610,32 @@ export interface PublicCandidateVerification {
   projects?: PublicProjectItem[];
   
   certificates?: PublicCertificateItem[];
+
+  /**
+   * Personal Information block — privacy-gated per-field values for
+   * the "Personal Information" CV section. Every field is null when
+   * the candidate hasn't enabled the corresponding show_* toggle.
+   */
+  personal_information?: PublicPersonalInformation | null;
+
+  /**
+   * Career Information block — headline, profession, current
+   * position, organization, experience years, bio. Single structured
+   * object so the CV has a clean render target.
+   */
+  career_information?: PublicCareerInformation | null;
+
+  /**
+   * Verification tier derived from passed_count + avg score:
+   *   0       → Unranked
+   *   1–2     → Bronze
+   *   3–5     → Silver
+   *   6–9     → Gold
+   *   ≥ 10    → Platinum
+   */
+  verification_category?: PublicVerificationCategory | null;
+  /** Human-readable label for the verification category. */
+  verification_category_label?: string | null;
 
   career_strengths?: string[];
 
@@ -1685,9 +1803,35 @@ export interface PublicCertificateVerification {
 }
 
 
+/**
+ * Minimal public-facing company profile returned when a recruiter
+ * searches for a SkillProof company account by their company Gmail.
+ * Only the name + logo + public-safe contact fields are exposed; no
+ * personal candidate data, no internal IDs.
+ */
+export interface PublicCompanyVerification {
+  kind: 'company';
+  result: 'verified';
+  company: {
+    id: string;
+    name: string;
+    logo_url: string | null;
+    logo_path: string | null;
+    email: string;
+    website_url: string | null;
+    category: string | null;
+    status: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+  };
+}
+
 export type PublicVerificationResponse =
   | (PublicCandidateVerification & { kind: 'passport' })
+  | (PublicCandidateVerification & { kind: 'unified' })
+  | (PublicCandidateVerification & { kind: 'private'; result: 'private' })
   | PublicCertificateVerification
+  | PublicCompanyVerification
   | { kind: 'not_found'; result: 'not_found'; passport_number?: string; credential_number?: string };
 
 
@@ -1721,8 +1865,21 @@ export interface PublicCandidatePassportItem {
   revoked_at: string | null;
   admin_notes: string | null;
   verified_skills: any[];
+  /** True when the candidate has marked this as their primary Passport.
+   *  At most ONE passport per user can have is_primary = true. */
+  is_primary?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** Response shape for the public.fn_set_primary_passport RPC. */
+export interface SetPrimaryPassportResult {
+  ok: boolean;
+  code?: 'invalid_input' | 'not_found' | 'forbidden' | 'invalid_state' | 'invariant_violation' | 'rpc_error' | 'unknown';
+  error?: string;
+  passport_id?: string;
+  is_primary?: boolean;
+  status?: string;
 }
 
 

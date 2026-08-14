@@ -2,6 +2,7 @@ import React from 'react';
 import { ShieldCheck, HelpCircle, CheckCircle, Mail, MapPin } from 'lucide-react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Footer } from '../../components/layout/Footer';
+import { SEOHead } from '../../components/public/SEOHead';
 import { useLanguage } from '../../context/LanguageContext';
 
 export const AboutPage: React.FC = () => {
@@ -38,6 +39,16 @@ export const AboutPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      <SEOHead
+        pageKey="about"
+        path="/about"
+        title="About SkillProof — Bangladesh's Skill Verification Platform"
+        description="Learn about SkillProof, Bangladesh's AI-powered skill verification and career development platform. Discover our mission, FAQs, and how we verify real skills."
+        breadcrumbs={[
+          { name: 'Home', url: '/' },
+          { name: 'About', url: '/about' },
+        ]}
+      />
       <Navbar />
 
       <main className="flex-1 py-12 sm:py-16">

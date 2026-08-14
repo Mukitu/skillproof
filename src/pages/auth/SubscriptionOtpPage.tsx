@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Footer } from '../../components/layout/Footer';
+import { SEOHead } from '../../components/public/SEOHead';
 import { BrandButton, BrandCard, SkillProofLogo } from '../../components/brand';
 import { useSubscription } from '../../context/SubscriptionContext';
 
@@ -124,6 +125,13 @@ export const SubscriptionOtpPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FFF8F6] text-slate-900 flex flex-col font-sans">
+      <SEOHead
+        pageKey="subscription-otp"
+        path="/subscription/otp"
+        title="Verify Subscription | SkillProof"
+        description="Verify your SkillProof subscription with the OTP sent to your phone."
+        robots="noindex,nofollow"
+      />
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center px-4 py-10 sm:py-14">

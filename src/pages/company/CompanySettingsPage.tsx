@@ -18,6 +18,9 @@ import {
   Loader2,
   Sparkles,
   Info,
+  Bell,
+  Briefcase,
+  BadgeCheck,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useCompanyAuth } from '../../context/CompanyAuthContext';
@@ -34,6 +37,7 @@ export const CompanySettingsPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwSuccess, setPwSuccess] = useState<string | null>(null);
   const [pwSaving, setPwSaving] = useState(false);
@@ -45,6 +49,10 @@ export const CompanySettingsPage: React.FC = () => {
     setPwError(null);
     setPwSuccess(null);
 
+    if (!currentPassword) {
+      setPwError(language === 'bn' ? 'বর্তমান পাসওয়ার্ড দিতে হবে' : 'Current password is required');
+      return;
+    }
     if (newPassword.length < 8) {
       setPwError(language === 'bn' ? 'নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে' : 'New password must be at least 8 characters');
       return;
@@ -57,10 +65,14 @@ export const CompanySettingsPage: React.FC = () => {
       setPwError(language === 'bn' ? 'নতুন পাসওয়ার্ড বর্তমান পাসওয়ার্ডের মতো হতে পারবে না' : 'New password must differ from the current one');
       return;
     }
+    if (!/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      setPwError(language === 'bn' ? 'নতুন পাসওয়ার্ড অক্ষর ও সংখ্যা উভয়ই থাকতে হবে' : 'Password must contain both letters and numbers');
+      return;
+    }
 
     setPwSaving(true);
     try {
-      await changeCompanyPassword(newPassword);
+      await changeCompanyPassword(newPassword, currentPassword);
       setPwSuccess(language === 'bn' ? 'পাসওয়ার্ড পরিবর্তন সম্পন্ন' : 'Password changed successfully');
       setCurrentPassword('');
       setNewPassword('');
@@ -126,7 +138,17 @@ export const CompanySettingsPage: React.FC = () => {
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <InfoRow icon={Building2} label={language === 'bn' ? 'নাম' : 'Name'} value={company.company_name} />
           <InfoRow icon={Sparkles} label={language === 'bn' ? 'ক্যাটাগরি' : 'Category'} value={company.category} />
-          <InfoRow icon={Mail} label={language === 'bn' ? 'ইমেইল' : 'Email'} value={company.email} />
+          <InfoRow
+            icon={Mail}
+            label={language === 'bn' ? 'অ্যাকাউন্ট ইমেইল' : 'Account Email'}
+            value={company.email}
+            locked
+            lockHint={
+              language === 'bn'
+                ? 'এই ইমেইলটি স্থায়ীভাবে আপনার কোম্পানি অ্যাকাউন্টের সাথে যুক্ত।'
+                : 'This email is permanently associated with your company account.'
+            }
+          />
           <InfoRow icon={Phone} label={language === 'bn' ? 'ফোন' : 'Phone'} value={company.phone} />
           <InfoRow icon={User} label={language === 'bn' ? '�োগাযোগ ব্যক্তি' : 'Contact Person'} value={company.contact_name ?? '—'} />
           <InfoRow icon={Globe} label={language === 'bn' ? 'ওয়েবসাইট' : 'Website'} value={company.website_url ?? '—'} />
@@ -181,8 +203,8 @@ export const CompanySettingsPage: React.FC = () => {
             label={language === 'bn' ? 'নতুন পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm New Password'}
             value={confirmPassword}
             onChange={setConfirmPassword}
-            show={showNew}
-            onToggle={() => setShowNew((s) => !s)}
+            show={showConfirm}
+            onToggle={() => setShowConfirm((s) => !s)}
             icon={KeyRound}
             autoComplete="new-password"
           />
@@ -195,6 +217,71 @@ export const CompanySettingsPage: React.FC = () => {
             <span>{language === 'bn' ? 'পাসওয়ার্ড আপডেট করুন' : 'Update Password'}</span>
           </button>
         </form>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-brand-sm p-5 sm:p-6">
+        <h2 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+          <Bell className="w-4 h-4 text-[#E31B23]" />
+          {language === 'bn' ? 'নোটিফিকেশন' : 'Notifications'}
+        </h2>
+        <p className="text-xs text-slate-500 mb-4">
+          {language === 'bn'
+            ? 'SkillProof থেকে কোন ইমেইলগুলো পেতে চান।'
+            : 'Choose which emails SkillProof sends to your company account.'}
+        </p>
+        <div className="space-y-2.5 text-xs text-slate-700">
+          <div className="flex items-start gap-2">
+            <Briefcase className="w-4 h-4 text-slate-400 mt-0.5" />
+            <div>
+              <p className="font-bold text-slate-900">
+                {language === 'bn' ? 'অ্যাপ্লিকেশন নোটিফিকেশন' : 'Application notifications'}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {language === 'bn'
+                  ? 'প্রার্থীরা আপনার জবে অ্যাপ্লাই করলে।'
+                  : 'When candidates apply to your jobs.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <Briefcase className="w-4 h-4 text-slate-400 mt-0.5" />
+            <div>
+              <p className="font-bold text-slate-900">
+                {language === 'bn' ? 'জব নোটিফিকেশন' : 'Job notifications'}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {language === 'bn'
+                  ? 'আপনার পোস্ট করা জব সংক্রান্ত আপডেট।'
+                  : 'Updates about the jobs you posted.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <BadgeCheck className="w-4 h-4 text-slate-400 mt-0.5" />
+            <div>
+              <p className="font-bold text-slate-900">
+                {language === 'bn' ? 'ভেরিফিকেশন নোটিফিকেশন' : 'Verification notifications'}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {language === 'bn'
+                  ? 'SkillProof ভেরিফিকেশন সংক্রান্ত আপডেট।'
+                  : 'Updates about SkillProof verification activity.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-brand-sm p-5 sm:p-6">
+        <h2 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-[#E31B23]" />
+          {language === 'bn' ? 'প্রাইভেসি / ভিজিবিলিটি' : 'Privacy / Visibility'}
+        </h2>
+        <p className="text-xs text-slate-500">
+          {language === 'bn'
+            ? 'আপনার কোম্পানির প্রোফাইল ও জব পোস্টিং ভিজিবিলিটি। কোম্পানি অ্যাকাউন্টে ব্যক্তিগত প্রোফাইল সেটিংস দেখানো হয় না।'
+            : 'Company profile and job posting visibility. Company accounts do not expose personal candidate settings.'}
+        </p>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-3xl shadow-brand-sm p-5 sm:p-6">
@@ -259,12 +346,20 @@ const InfoRow: React.FC<{
   label: string;
   value: React.ReactNode;
   fullWidth?: boolean;
-}> = ({ icon: Icon, label, value, fullWidth }) => (
+  locked?: boolean;
+  lockHint?: string;
+}> = ({ icon: Icon, label, value, fullWidth, locked, lockHint }) => (
   <div className={`flex items-start gap-3 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl ${fullWidth ? 'sm:col-span-2' : ''}`}>
     <Icon className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
     <div className="min-w-0 flex-1">
       <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">{label}</p>
       <p className="text-xs font-bold text-slate-900 mt-0.5 break-words">{value}</p>
+      {locked ? (
+        <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+          <Lock className="w-3 h-3" />
+          {lockHint ?? 'This field is permanently bound to your account.'}
+        </p>
+      ) : null}
     </div>
   </div>
 );

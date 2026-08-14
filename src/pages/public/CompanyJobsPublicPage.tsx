@@ -29,6 +29,7 @@ import {
 } from '../../services/companyJobs';
 import { listActiveCategories } from '../../services/companyJobs';
 import type { Category } from '../../types/database';
+import { SEOHead } from '../../components/public/SEOHead';
 
 const PAGE_SIZE = 12;
 
@@ -122,8 +123,19 @@ export const CompanyJobsPublicPage: React.FC = () => {
   const workLabels = useMemo(() => COMPANY_JOB_WORK_LABELS, []);
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white border border-red-100 rounded-3xl shadow-brand-sm p-5 sm:p-6 relative overflow-hidden">
+    <>
+      <SEOHead
+        pageKey="company-jobs"
+        path="/company-jobs"
+        title="Browse Verified Jobs in Bangladesh | SkillProof"
+        description="Browse open roles posted by verified companies on SkillProof. Search jobs by category, employment type, and work mode — all powered by verified candidates and employers."
+        breadcrumbs={[
+          { name: 'Home', url: '/' },
+          { name: 'Company Jobs', url: '/company-jobs' },
+        ]}
+      />
+      <div className="space-y-6">
+        <div className="bg-white border border-red-100 rounded-3xl shadow-brand-sm p-5 sm:p-6 relative overflow-hidden">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#E31B23] via-[#F97316] to-[#FF8A00]" />
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -439,6 +451,7 @@ export const CompanyJobsPublicPage: React.FC = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 

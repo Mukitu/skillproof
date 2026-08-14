@@ -146,6 +146,95 @@ export async function updatePassword(newPassword: string) {
   }
 }
 
+/**
+ * SkillProof password policy. Mirrors the Supabase default (8+ chars)
+ * plus a light complexity requirement so accounts are not trivially
+ * brute-forced.
+ */
+export function validatePasswordPolicy(pwd: string): { ok: true } | { ok: false; reason: string } {
+  const v = (pwd ?? '').toString();
+  if (v.length < 8) {
+    return { ok: false, reason: 'Password must be at least 8 characters.' };
+  }
+  if (v.length > 128) {
+    return { ok: false, reason: 'Password must be 128 characters or fewer.' };
+  }
+  if (!/[A-Za-z]/.test(v) || !/[0-9]/.test(v)) {
+    return {
+      ok: false,
+      reason: 'Password must contain both letters and numbers.',
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Change Password for the currently signed-in user.
+ *
+ * Flow:
+ *  1. Re-authenticate with the current password (sign in with the same
+ *     email + current password). This is the only safe way to verify
+ *     the current password without breaking the existing session.
+ *  2. If the re-auth succeeds, call updateUser({ password: newPassword }).
+ *  3. The new password is validated against the SkillProof policy
+ *     client-side AND by Supabase Auth on the server.
+ *
+ * On success, the Supabase session is kept (we do NOT sign the user
+ * out) so the rest of the app continues to work. The session may
+ *  trigger a USER_UPDATED event automatically.
+ */
+export async function changeMyPassword(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<void> {
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    throw normalizeAuthError(
+      new Error('all_fields_required'),
+      'All password fields are required.',
+    );
+  }
+  if (newPassword !== confirmPassword) {
+    throw normalizeAuthError(
+      new Error('passwords_mismatch'),
+      'New passwords do not match.',
+    );
+  }
+  if (currentPassword === newPassword) {
+    throw normalizeAuthError(
+      new Error('same_password'),
+      'New password must differ from the current password.',
+    );
+  }
+  const policy: { ok: true } | { ok: false; reason: string } = validatePasswordPolicy(newPassword);
+  if (policy.ok !== true) {
+    throw normalizeAuthError(new Error('weak_password'), policy.reason);
+  }
+
+  // 1. Verify current password by signing in with the same email.
+  const authUser = await getCurrentUser();
+  if (!authUser || !authUser.email) {
+    throw normalizeAuthError(
+      new Error('session_missing'),
+      'You are signed out. Please sign in again.',
+    );
+  }
+  const { error: reauthErr } = await supabase.auth.signInWithPassword({
+    email: authUser.email,
+    password: currentPassword,
+  });
+  if (reauthErr) {
+    // signInWithPassword already normalises to invalid_credentials.
+    throw normalizeAuthError(
+      reauthErr,
+      'Current password is incorrect.',
+    );
+  }
+
+  // 2. Update the password. The session is preserved.
+  await updatePassword(newPassword);
+}
+
 
 export async function getAccessToken(opts: { forceRefresh?: boolean } = {}): Promise<string> {
   let session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] | null = null;
@@ -229,33 +318,50 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
 
 export async function ensureProfile(userId: string, email: string, fullName: string): Promise<Profile> {
   const safeName = fullName && fullName.trim().length > 0 ? fullName : '';
+  // SECURITY: profiles.email is the permanent account email set at
+  // signup. We INSERT a new row if one does not exist, but we MUST
+  // NOT overwrite the email on conflict — the trigger
+  // fn_block_profiles_email_change will reject the UPDATE anyway.
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (existing) {
+    // Only patch the missing non-email fields if needed.
+    const { data: row, error } = await supabase
+      .from('profiles')
+      .update({ full_name: safeName })
+      .eq('user_id', userId)
+      .select('*')
+      .single();
+    if (error) rethrow(error, 'Unable to load profile');
+    return row as Profile;
+  }
   const { data, error } = await supabase
     .from('profiles')
-    .upsert(
-      {
-        user_id: userId,
-        email,
-        full_name: safeName,
-        role: 'user',
-        avatar_url: null,
-        phone: null,
-        bio: null,
-        profession: null,
-        current_position: null,
-        experience_years: 0,
-        experience_summary: null,
-        education_degree: null,
-        education_institution: null,
-        education_year: null,
-        skills: [],
-        resume_url: null,
-        github_url: null,
-        linkedin_url: null,
-        portfolio_url: null,
-        website_url: null,
-      },
-      { onConflict: 'user_id' },
-    )
+    .insert({
+      user_id: userId,
+      email,
+      full_name: safeName,
+      role: 'user',
+      avatar_url: null,
+      phone: null,
+      bio: null,
+      profession: null,
+      current_position: null,
+      experience_years: 0,
+      experience_summary: null,
+      education_degree: null,
+      education_institution: null,
+      education_year: null,
+      skills: [],
+      resume_url: null,
+      github_url: null,
+      linkedin_url: null,
+      portfolio_url: null,
+      website_url: null,
+    })
     .select('*')
     .single();
   if (error) rethrow(error, 'Unable to create profile');
@@ -268,9 +374,38 @@ export async function updateMyProfile(patch: Partial<Profile>): Promise<Profile>
     if (!user) {
       throw normalizeAuthError(new Error('session_missing'), 'You are signed out.');
     }
+    // SECURITY: profiles.email is permanently bound to the authenticated
+    // account email. Strip any client-side attempt to overwrite it. The
+    // DB trigger fn_block_profiles_email_change would also reject this,
+    // but stripping client-side gives a clean error without a round-trip.
+    const safePatch: Partial<Profile> = { ...(patch as Partial<Profile>) };
+    if ('email' in safePatch) {
+      delete (safePatch as { email?: string }).email;
+    }
+    if ('user_id' in safePatch) {
+      delete (safePatch as { user_id?: string }).user_id;
+    }
+    if ('id' in safePatch) {
+      delete (safePatch as { id?: string }).id;
+    }
+    if ('role' in safePatch) {
+      delete (safePatch as { role?: string }).role;
+    }
+    if ('role_status' in safePatch) {
+      delete (safePatch as { role_status?: string }).role_status;
+    }
+    if ('is_suspended' in safePatch) {
+      delete (safePatch as { is_suspended?: boolean }).is_suspended;
+    }
+    if (Object.keys(safePatch).length === 0) {
+      // Nothing to update — return current state.
+      const cur = await fetchProfile(user.id);
+      if (!cur) throw normalizeAuthError(new Error('profile_missing'), 'Profile not found.');
+      return cur;
+    }
     const { data, error } = await supabase
       .from('profiles')
-      .update(patch)
+      .update(safePatch)
       .eq('user_id', user.id)
       .select('*')
       .single();

@@ -4,7 +4,7 @@ import { getMyProfileId } from './profile';
 import { logActivity } from './activity';
 import type {
   PassportCategoryEligibility, PassportLevel, PassportLevelHistory,
-  PassportOverviewJoined, PassportRenewalHistory, SkillPassport,
+  PassportOverviewJoined, PassportRenewalHistory, SetPrimaryPassportResult, SkillPassport,
 } from '../types/database';
 
 
@@ -239,6 +239,16 @@ export async function getPassportOverview(passportId: string): Promise<PassportO
 
 
 
+
+export async function setPrimaryPassport(passportId: string): Promise<SetPrimaryPassportResult> {
+  const { data, error } = await supabase.rpc('fn_set_primary_passport', {
+    p_passport_id: passportId,
+  });
+  if (error) {
+    return { ok: false, code: 'rpc_error', error: error.message };
+  }
+  return (data as SetPrimaryPassportResult) ?? { ok: false, code: 'unknown', error: 'no_response' };
+}
 
 export async function getActivePassportForUser(): Promise<SkillPassport | null> {
   const all = await getMyPassports();

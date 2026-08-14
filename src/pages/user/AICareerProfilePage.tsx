@@ -14,6 +14,9 @@ import { useRealtimeRefresh } from '../../services/realtime';
 import { supabase } from '../../lib/supabase';
 import { AppErrorBoundary } from '../../components/error/AppErrorBoundary';
 import { ProfilePictureUpload } from '../../components/profile/ProfilePictureUpload';
+import { ProjectsSection } from '../../components/profile/ProjectsSection';
+import { DigitalCvPreview } from '../../components/profile/DigitalCvPreview';
+import { AutoResizeTextarea } from '../../components/ui/AutoResizeTextarea';
 import {
   loadEducations,
   loadExperiences,
@@ -174,7 +177,7 @@ const AICareerProfilePageInner: React.FC = () => {
       { key: 'skills',    label: t('Skills (3+)',            'স্কিল (৩+)'),          done: skills.length >= 3 },
       { key: 'portfolio', label: t('Portfolio / social',     'পোর্টফোলিও / সোশ্যাল'), done: has(profile?.github_url) || has(profile?.linkedin_url) || has(profile?.portfolio_url) || has(profile?.website_url) },
       { key: 'location',  label: t('Country / division',     'দেশ / বিভাগ'),        done: has(profile?.division) || has(profile?.district) || has((profile as any)?.country) },
-      { key: 'languages', label: t('Languages (1+)',         'ভাষা (১+)'),          done: Array.isArray((profile as any)?.languages) && ((profile as any).languages.length >= 1) },
+      { key: 'languages', label: t('Languages (1+)',         'ভাষা (১+)'),          done: skills.filter((s) => s.category === 'language').length >= 1 },
     ];
     const doneCount = buckets.filter(b => b.done).length;
     const score = doneCount * 10;
@@ -420,6 +423,17 @@ const AICareerProfilePageInner: React.FC = () => {
         <div className="space-y-5">
           <ProfilePictureUpload t={t} />
 
+          {/* Digital CV preview — mirrors the public /verify surface so the
+              user can see exactly what recruiters see. */}
+          <SectionHeader
+            icon={<Sparkles size={16} />}
+            title={t('Your digital CV', 'আপনার ডিজিটাল CV')}
+            savedAt={undefined}
+            saving={false}
+            t={t}
+          />
+          <DigitalCvPreview />
+
           {}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -623,6 +637,17 @@ const AICareerProfilePageInner: React.FC = () => {
             onSave={(patch) => saveSection('links', { profile: patch })}
             t={t}
           />
+
+          {/* Live / demo project entries — unlimited, shown on the public
+              /verify "Public Evidence" section. */}
+          <SectionHeader
+            icon={<ExternalLink size={16} />}
+            title={t('Live projects & demos', 'লাইভ প্রজেক্ট ও ডেমো')}
+            savedAt={undefined}
+            saving={false}
+            t={t}
+          />
+          <ProjectsSection t={t} />
         </div>
       )}
 
@@ -794,7 +819,13 @@ const PersonalSection: React.FC<{
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
           <label className="mb-1 block text-[11px] font-bold text-slate-700">{t('Professional bio', 'পেশাগত বায়ো')}</label>
-          <textarea className={inputCls} rows={3} value={bio} onChange={(e) => mark(setBio)(e.target.value)} />
+          <AutoResizeTextarea
+            className={inputCls}
+            minRows={3}
+            maxRows={10}
+            value={bio}
+            onChange={(e) => mark(setBio)(e.target.value)}
+          />
         </div>
       </div>
 
@@ -843,7 +874,7 @@ const CareerSection: React.FC<{
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    if (dirty) return; 
+    if (dirty) return;
     setProfession(profile?.profession || '');
     setCurrentPosition(profile?.current_position || '');
     setExperienceYears(profile?.experience_years ?? 0);
@@ -889,7 +920,17 @@ const CareerSection: React.FC<{
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
           <label className="mb-1 block text-[11px] font-bold text-slate-700">{t('Work experience highlights', 'অভিজ্ঞতার সংক্ষিপ্ত বিবরণ')}</label>
-          <textarea className={inputCls} rows={3} value={experienceSummary} onChange={(e) => mark(setExperienceSummary)(e.target.value)} />
+          <AutoResizeTextarea
+            className={inputCls}
+            minRows={3}
+            maxRows={12}
+            value={experienceSummary}
+            onChange={(e) => mark(setExperienceSummary)(e.target.value)}
+            placeholder={t(
+              'A short summary that appears on your public /verify profile (Experience summary section).',
+              'আপনার পাবলিক /verify প্রোফাইলে দেখানো একটি ছোট সারাংশ (অভিজ্ঞতা সারাংশ)।',
+            )}
+          />
         </div>
       </div>
 
@@ -1128,7 +1169,14 @@ const ExperienceSection: React.FC<{
                 </div>
                 <div className="sm:col-span-2">
                   <label className="mb-1 block text-[10px] font-bold text-slate-600">{t('Highlights', 'হাইলাইটস')}</label>
-                  <textarea className={inputCls} rows={3} value={row.summary ?? ''} onChange={(e) => update(realIdx, 'summary', e.target.value)} placeholder={t('Key responsibilities, achievements, technologies…', 'মূল দায়িত্ব, অর্জন, ব্যবহৃত প্রযুক্তি…')} />
+                  <AutoResizeTextarea
+                    className={inputCls}
+                    minRows={3}
+                    maxRows={14}
+                    value={row.summary ?? ''}
+                    onChange={(e) => update(realIdx, 'summary', e.target.value)}
+                    placeholder={t('Key responsibilities, achievements, technologies…', 'মূল দায়িত্ব, অর্জন, ব্যবহৃত প্রযুক্তি…')}
+                  />
                 </div>
               </div>
             </div>
@@ -1177,11 +1225,10 @@ const SkillsSection: React.FC<{
   onSave: (rows: ManualSkillRow[]) => Promise<void>;
   t: (en: string, bn: string) => string;
 }> = ({ rows, saving, error, onSave, t }) => {
-  
-  
-  
-  
-  
+
+
+
+
   const onSaveRef = useRef(onSave);
   useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
@@ -1190,10 +1237,16 @@ const SkillsSection: React.FC<{
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
 
+  // Per-chip URL editor: opens an inline input next to the chip's name.
+  // urlEditingId is the stable id (or `__<index>` fallback) for the row
+  // being edited; urlEditingValue is the live text in the input.
+  const [urlEditingId, setUrlEditingId] = useState<string | null>(null);
+  const [urlEditingValue, setUrlEditingValue] = useState('');
+
   const [local, setLocal] = useState<ManualSkillRow[]>(rows);
   const [dirty, setDirty] = useState(false);
 
-  
+
   useEffect(() => {
     if (dirty) return;
     if (!rowsHaveSameIds(rows, local)) {
@@ -1201,26 +1254,13 @@ const SkillsSection: React.FC<{
     }
   }, [rows, dirty]);
 
-  
-  
-  
-  
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const commit = useCallback((next: ManualSkillRow[]) => {
-    if (commitTimer.current) clearTimeout(commitTimer.current);
-    commitTimer.current = setTimeout(() => {
-      void onSaveRef.current(next);
-      setDirty(false);
-    }, 350);
-  }, []);
-  useEffect(() => () => {
-    if (commitTimer.current) clearTimeout(commitTimer.current);
-  }, []);
+
+
 
   const add = (): void => {
     const name = input.replace(/\s+/g, ' ').trim();
     if (!name) return;
-    
+
     const exists = local.some(
       (s) => s.category === cat && s.name.toLowerCase() === name.toLowerCase(),
     );
@@ -1228,18 +1268,16 @@ const SkillsSection: React.FC<{
       setInput('');
       return;
     }
-    const next = [...local, { name, category: cat }];
+    const next = [...local, { name, category: cat, url: null }];
     setLocal(next);
     setInput('');
     setDirty(true);
-    commit(next);
   };
 
   const remove = (i: number): void => {
     const next = local.filter((_, idx) => idx !== i);
     setLocal(next);
     setDirty(true);
-    commit(next);
   };
 
   const startEdit = (i: number): void => {
@@ -1265,9 +1303,39 @@ const SkillsSection: React.FC<{
     const next = local.map((row, idx) => idx === i ? { ...row, name } : row);
     setLocal(next);
     setDirty(true);
-    commit(next);
     cancelEdit();
   };
+
+  // ----- URL editor handlers ---------------------------------------------
+  const startUrlEdit = (i: number): void => {
+    const r = local[i];
+    if (!r) return;
+    setUrlEditingId(r.id ?? `__${i}`);
+    setUrlEditingValue(r.url ?? '');
+  };
+
+  const cancelUrlEdit = (): void => {
+    setUrlEditingId(null);
+    setUrlEditingValue('');
+  };
+
+  const saveUrlEdit = (i: number): void => {
+    const next = local.map((row, idx) => {
+      if (idx !== i) return row;
+      const cleaned = urlEditingValue.replace(/\s+/g, ' ').trim();
+      return { ...row, url: cleaned.length > 0 ? cleaned : null };
+    });
+    setLocal(next);
+    setDirty(true);
+    cancelUrlEdit();
+  };
+
+  const clearUrl = (i: number): void => {
+    const next = local.map((row, idx) => idx === i ? { ...row, url: null } : row);
+    setLocal(next);
+    setDirty(true);
+  };
+  // ----------------------------------------------------------------------
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1275,13 +1343,13 @@ const SkillsSection: React.FC<{
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          
-          
+
+
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ',') {
               e.preventDefault();
-              
-              
+
+
               if (e.key === ',') {
                 setInput((cur) => cur.replace(/,\s*$/, ''));
               }
@@ -1289,17 +1357,17 @@ const SkillsSection: React.FC<{
             }
           }}
           onPaste={(e) => {
-            
-            
-            
+
+
+
             const pasted = e.clipboardData.getData('text') ?? '';
             if (pasted.includes(',') && pasted.split(',').some((p) => p.trim().length > 0)) {
               e.preventDefault();
               const parts = pasted.split(',').map((p) => p.trim()).filter(Boolean);
               if (parts.length === 0) return;
-              
-              
-              
+
+
+
               const first = input.trim().length > 0
                 ? input.trim() + ' ' + parts[0]
                 : parts[0];
@@ -1312,14 +1380,13 @@ const SkillsSection: React.FC<{
                 const key = `${cat}::${cleaned.toLowerCase()}`;
                 if (seen.has(key)) return;
                 seen.add(key);
-                next = [...next, { name: cleaned, category: cat }];
+                next = [...next, { name: cleaned, category: cat, url: null }];
               };
               push(first);
               rest.forEach(push);
               setLocal(next);
               setInput('');
               setDirty(true);
-              commit(next);
             }
           }}
           placeholder={t('Add a skill — e.g. React, SEO, Financial Analysis', 'একটি দক্ষতা যোগ করুন — যেমন: React, SEO, Financial Analysis')}
@@ -1343,61 +1410,127 @@ const SkillsSection: React.FC<{
         </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-1.5">
+      <div className="mt-4 flex flex-wrap gap-2">
         {local.length === 0 && (
           <p className="text-[12px] text-slate-400">{t('No skills yet.', 'এখনো কোনো দক্ষতা নেই।')}</p>
         )}
         {local.map((s, i) => {
-          const editing = editingId === (s.id ?? `__${i}`);
+          const keyId = s.id ?? `__${i}`;
+          const editing = editingId === keyId;
+          const urlEditing = urlEditingId === keyId;
           const tone =
             s.category === 'soft'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
               : s.category === 'tools'
                 ? 'border-amber-200 bg-amber-50 text-amber-700'
                 : 'border-blue-200 bg-blue-50 text-blue-700';
-          if (editing) {
-            return (
-              <span
-                key={s.id ?? `__${i}`}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold ${tone}`}
-              >
-                <input
-                  autoFocus
-                  value={editingValue}
-                  onChange={(e) => setEditingValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); saveEdit(i); }
-                    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
-                  }}
-                  onBlur={() => saveEdit(i)}
-                  className="w-24 bg-transparent text-[11px] font-bold outline-none placeholder:text-slate-400"
-                />
-                <button type="button" onClick={() => saveEdit(i)} className="hover:opacity-70" aria-label="Save">
-                  <CheckCircle2 size={11} />
-                </button>
-                <button type="button" onClick={cancelEdit} className="hover:opacity-70" aria-label="Cancel">
-                  <X size={11} />
-                </button>
-              </span>
-            );
-          }
           return (
-            <span
-              key={s.id ?? `__${i}`}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold ${tone}`}
+            <div
+              key={keyId}
+              className={`flex flex-col gap-1 rounded-2xl border bg-white p-2 shadow-sm ${tone.replace('bg-', 'border-').split(' ')[0]}`}
             >
-              <button
-                type="button"
-                onClick={() => startEdit(i)}
-                className="hover:underline"
-                title={t('Click to edit', 'এডিট করতে ক্লিক করুন')}
-              >
-                {s.name}
-              </button>
-              <button type="button" onClick={() => remove(i)} className="hover:opacity-70" aria-label="Delete">
-                <X size={11} />
-              </button>
-            </span>
+              {editing ? (
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold ${tone}`}>
+                  <input
+                    autoFocus
+                    value={editingValue}
+                    onChange={(e) => setEditingValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); saveEdit(i); }
+                      else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                    }}
+                    onBlur={() => saveEdit(i)}
+                    className="w-24 bg-transparent text-[11px] font-bold outline-none placeholder:text-slate-400"
+                  />
+                  <button type="button" onClick={() => saveEdit(i)} className="hover:opacity-70" aria-label="Save">
+                    <CheckCircle2 size={11} />
+                  </button>
+                  <button type="button" onClick={cancelEdit} className="hover:opacity-70" aria-label="Cancel">
+                    <X size={11} />
+                  </button>
+                </span>
+              ) : (
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold ${tone}`}>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(i)}
+                    className="hover:underline"
+                    title={t('Click to edit name', 'নাম এডিট করতে ক্লিক করুন')}
+                  >
+                    {s.name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => (s.url ? window.open(s.url, '_blank', 'noopener,noreferrer') : startUrlEdit(i))}
+                    className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold hover:bg-white"
+                    title={s.url
+                      ? t('Open link · click ⚙ to change', 'লিঙ্ক ওপেন · ⚙ দিয়ে পরিবর্তন')
+                      : t('Add a link (optional)', 'লিঙ্ক যোগ করুন (ঐচ্ছিক)')}
+                    aria-label={s.url ? 'Open link' : 'Add link'}
+                  >
+                    {s.url ? (
+                      <>
+                        <ExternalLink size={10} />
+                        <span className="max-w-[10ch] truncate font-mono">{s.url.replace(/^https?:\/\//, '')}</span>
+                      </>
+                    ) : (
+                      <Globe size={10} className="opacity-60" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => (urlEditing ? cancelUrlEdit() : startUrlEdit(i))}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-white"
+                    title={urlEditing ? t('Close', 'বন্ধ') : t('Edit link', 'লিঙ্ক এডিট')}
+                    aria-label="Toggle link editor"
+                  >
+                    <Pencil size={9} className="opacity-70" />
+                  </button>
+                  <button type="button" onClick={() => remove(i)} className="hover:opacity-70" aria-label="Delete">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {urlEditing && (
+                <div className="flex flex-col gap-1 px-1">
+                  <input
+                    autoFocus
+                    value={urlEditingValue}
+                    onChange={(e) => setUrlEditingValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); saveUrlEdit(i); }
+                      else if (e.key === 'Escape') { e.preventDefault(); cancelUrlEdit(); }
+                    }}
+                    onBlur={() => saveUrlEdit(i)}
+                    placeholder="https://…"
+                    className="w-56 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-900 focus:border-[#E31B23] focus:bg-white focus:outline-none"
+                  />
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => saveUrlEdit(i)}
+                      className="font-bold text-emerald-700 hover:underline"
+                    >
+                      {t('Save link', 'লিঙ্ক সেভ')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearUrl(i)}
+                      className="font-bold text-rose-600 hover:underline"
+                    >
+                      {t('Remove link', 'লিঙ্ক মুছুন')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelUrlEdit}
+                      className="font-bold text-slate-500 hover:underline"
+                    >
+                      {t('Cancel', 'বাতিল')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -1406,14 +1539,16 @@ const SkillsSection: React.FC<{
 
       <div className="mt-5 flex items-center justify-between gap-2">
         <span className="text-[11px] text-slate-500">
-          {saving ? t('Saving…', 'সংরক্ষণ হচ্ছে…') : t('Auto-saved', 'স্বয়ংক্রিয়ভাবে সংরক্ষিত')}
+          {saving
+            ? t('Saving…', 'সংরক্ষণ হচ্ছে…')
+            : dirty
+              ? t('Unsaved changes — click Save changes', 'অসংরক্ষিত পরিবর্তন — সেভ করুন')
+              : t('Up to date', 'সব আপ টু ডেট')}
         </span>
         <SaveButton
           dirty={dirty}
           saving={saving}
           onClick={async () => {
-            
-            if (commitTimer.current) clearTimeout(commitTimer.current);
             await onSave(local);
             setDirty(false);
           }}
@@ -1460,8 +1595,13 @@ const LangCertSection: React.FC<{
   useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
   const [input, setInput] = useState('');
+  const [inputUrl, setInputUrl] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
+
+  // URL editor state, same pattern as SkillsSection.
+  const [urlEditingId, setUrlEditingId] = useState<string | null>(null);
+  const [urlEditingValue, setUrlEditingValue] = useState('');
 
   const [local, setLocal] = useState<ManualSkillRow[]>(rows);
   const [dirty, setDirty] = useState(false);
@@ -1473,41 +1613,41 @@ const LangCertSection: React.FC<{
     }
   }, [rows, dirty]);
 
-  
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const commit = useCallback((next: ManualSkillRow[]) => {
-    if (commitTimer.current) clearTimeout(commitTimer.current);
-    commitTimer.current = setTimeout(() => {
-      void onSaveRef.current(next);
-      setDirty(false);
-    }, 350);
-  }, []);
-  useEffect(() => () => {
-    if (commitTimer.current) clearTimeout(commitTimer.current);
-  }, []);
 
   const isLang = category === 'language';
-  const label = isLang ? t('Add a language — e.g. Bangla, English, Hindi', 'একটি ভাষা যোগ করুন — যেমন: বাংলা, ইংরেজি, হিন্দি')
-                       : t('Add a certification — e.g. AWS Solutions Architect', 'একটি সার্টিফিকেশন যোগ করুন — যেমন: AWS Solutions Architect');
+  const urlRequired = !isLang; // certifications require a URL
+  const label = isLang
+    ? t('Add a language — e.g. Bangla, English, Hindi', 'একটি ভাষা যোগ করুন — যেমন: বাংলা, ইংরেজি, হিন্দি')
+    : t('Add a certification — e.g. AWS Solutions Architect', 'একটি সার্টিফিকেশন যোগ করুন — যেমন: AWS Solutions Architect');
+  const urlPlaceholder = isLang
+    ? t('Optional link (e.g. test result)', 'ঐচ্ছিক লিঙ্ক (যেমন টেস্ট রেজাল্ট)')
+    : t('Credential URL (required)', 'ক্রেডেনশিয়াল URL (আবশ্যক)');
 
   const add = (): void => {
     const name = input.replace(/\s+/g, ' ').trim();
     if (!name) return;
     if (local.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
       setInput('');
+      setInputUrl('');
       return;
     }
-    const next = [...local, { name, category }];
+    const cleanedUrl = inputUrl.replace(/\s+/g, ' ').trim();
+    const url = cleanedUrl.length > 0 ? cleanedUrl : null;
+    if (urlRequired && !url) {
+      // Surface validation; do NOT add and silently accept.
+      return;
+    }
+    const next = [...local, { name, category, url }];
     setLocal(next);
     setInput('');
+    setInputUrl('');
     setDirty(true);
-    commit(next);
   };
+
   const remove = (i: number): void => {
     const next = local.filter((_, idx) => idx !== i);
     setLocal(next);
     setDirty(true);
-    commit(next);
   };
 
   const startEdit = (i: number): void => {
@@ -1526,13 +1666,43 @@ const LangCertSection: React.FC<{
     const next = local.map((row, idx) => idx === i ? { ...row, name } : row);
     setLocal(next);
     setDirty(true);
-    commit(next);
     cancelEdit();
   };
+
+  // ----- URL editor handlers ---------------------------------------------
+  const startUrlEdit = (i: number): void => {
+    const r = local[i];
+    if (!r) return;
+    setUrlEditingId(r.id ?? `__${i}`);
+    setUrlEditingValue(r.url ?? '');
+  };
+  const cancelUrlEdit = (): void => {
+    setUrlEditingId(null);
+    setUrlEditingValue('');
+  };
+  const saveUrlEdit = (i: number): void => {
+    const next = local.map((row, idx) => {
+      if (idx !== i) return row;
+      const cleaned = urlEditingValue.replace(/\s+/g, ' ').trim();
+      return { ...row, url: cleaned.length > 0 ? cleaned : null };
+    });
+    setLocal(next);
+    setDirty(true);
+    cancelUrlEdit();
+  };
+  const clearUrl = (i: number): void => {
+    const next = local.map((row, idx) => idx === i ? { ...row, url: null } : row);
+    setLocal(next);
+    setDirty(true);
+  };
+  // ----------------------------------------------------------------------
 
   const tone = isLang
     ? 'border-purple-200 bg-purple-50 text-purple-700'
     : 'border-amber-200 bg-amber-50 text-amber-700';
+
+  const inputUrlMissing = urlRequired && inputUrl.replace(/\s+/g, ' ').trim().length === 0;
+  const hasMissingRequiredUrl = !isLang && local.some((s) => !s.url);
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1541,9 +1711,12 @@ const LangCertSection: React.FC<{
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ',') {
+            if (e.key === 'Enter') {
               e.preventDefault();
-              if (e.key === ',') setInput((cur) => cur.replace(/,\s*$/, ''));
+              add();
+            } else if (e.key === ',') {
+              e.preventDefault();
+              setInput((cur) => cur.replace(/,\s*$/, ''));
               add();
             }
           }}
@@ -1565,69 +1738,177 @@ const LangCertSection: React.FC<{
                 const k = cleaned.toLowerCase();
                 if (seen.has(k)) return;
                 seen.add(k);
-                next = [...next, { name: cleaned, category }];
+                next = [...next, { name: cleaned, category, url: null }];
               };
               push(first);
               rest.forEach(push);
               setLocal(next);
               setInput('');
               setDirty(true);
-              commit(next);
             }
           }}
           placeholder={label}
           className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-[#E31B23] focus:bg-white focus:outline-none"
         />
+        <input
+          value={inputUrl}
+          onChange={(e) => setInputUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder={urlPlaceholder}
+          className={`flex-1 rounded-xl border bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-[#E31B23] focus:bg-white focus:outline-none ${
+            inputUrlMissing && urlRequired ? 'border-rose-300 bg-rose-50' : 'border-slate-200'
+          }`}
+        />
         <button
           type="button"
           onClick={add}
-          className="shrink-0 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
+          disabled={urlRequired && inputUrlMissing}
+          className="shrink-0 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           + {t('Add', 'যোগ')}
         </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-1.5">
+      {urlRequired && (
+        <p className="mt-1.5 text-[10px] font-bold text-amber-700">
+          {t(
+            'Certifications need a verify URL (credential ID link). It shows on your public CV.',
+            'সার্টিফিকেশনের জন্য একটি ভেরিফাই URL দিতে হবে। এটি আপনার পাবলিক CV তে দেখাবে।',
+          )}
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
         {local.length === 0 && <p className="text-[12px] text-slate-400">{t('Nothing added yet.', 'এখনো কিছু যোগ হয়নি।')}</p>}
         {local.map((s, i) => {
-          const editing = editingId === (s.id ?? `__${i}`);
-          if (editing) {
-            return (
-              <span key={s.id ?? `__${i}`} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold ${tone}`}>
-                <input
-                  autoFocus
-                  value={editingValue}
-                  onChange={(e) => setEditingValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); saveEdit(i); }
-                    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
-                  }}
-                  onBlur={() => saveEdit(i)}
-                  className="w-24 bg-transparent text-[11px] font-bold outline-none placeholder:text-slate-400"
-                />
-                <button type="button" onClick={() => saveEdit(i)} aria-label="Save" className="hover:opacity-70">
-                  <CheckCircle2 size={11} />
-                </button>
-                <button type="button" onClick={cancelEdit} aria-label="Cancel" className="hover:opacity-70">
-                  <X size={11} />
-                </button>
-              </span>
-            );
-          }
+          const keyId = s.id ?? `__${i}`;
+          const editing = editingId === keyId;
+          const urlEditing = urlEditingId === keyId;
+          const needsUrl = urlRequired && !s.url;
           return (
-            <span key={s.id ?? `__${i}`} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold ${tone}`}>
-              <button
-                type="button"
-                onClick={() => startEdit(i)}
-                className="hover:underline"
-                title={t('Click to edit', 'এডিট করতে ক্লিক করুন')}
-              >
-                {s.name}
-              </button>
-              <button type="button" onClick={() => remove(i)} aria-label="Delete" className="hover:opacity-70">
-                <X size={11} />
-              </button>
-            </span>
+            <div
+              key={keyId}
+              className={`flex flex-col gap-1 rounded-2xl border bg-white p-2 shadow-sm ${tone.replace('bg-', 'border-').split(' ')[0]}`}
+            >
+              {editing ? (
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold ${tone}`}>
+                  <input
+                    autoFocus
+                    value={editingValue}
+                    onChange={(e) => setEditingValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); saveEdit(i); }
+                      else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                    }}
+                    onBlur={() => saveEdit(i)}
+                    className="w-24 bg-transparent text-[11px] font-bold outline-none placeholder:text-slate-400"
+                  />
+                  <button type="button" onClick={() => saveEdit(i)} aria-label="Save" className="hover:opacity-70">
+                    <CheckCircle2 size={11} />
+                  </button>
+                  <button type="button" onClick={cancelEdit} aria-label="Cancel" className="hover:opacity-70">
+                    <X size={11} />
+                  </button>
+                </span>
+              ) : (
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold ${tone}`}>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(i)}
+                    className="hover:underline"
+                    title={t('Click to edit name', 'নাম এডিট করতে ক্লিক করুন')}
+                  >
+                    {s.name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => (s.url ? window.open(s.url, '_blank', 'noopener,noreferrer') : startUrlEdit(i))}
+                    className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold hover:bg-white ${needsUrl ? 'text-rose-600' : ''}`}
+                    title={
+                      s.url
+                        ? t('Open verify URL · click ⚙ to change', 'ভেরিফাই URL ওপেন · ⚙ দিয়ে পরিবর্তন')
+                        : urlRequired
+                          ? t('Add credential URL (required)', 'ক্রেডেনশিয়াল URL যোগ করুন (আবশ্যক)')
+                          : t('Add a link (optional)', 'লিঙ্ক যোগ করুন (ঐচ্ছিক)')
+                    }
+                    aria-label={s.url ? 'Open verify URL' : 'Add verify URL'}
+                  >
+                    {s.url ? (
+                      <>
+                        <ExternalLink size={10} />
+                        <span className="max-w-[10ch] truncate font-mono">{s.url.replace(/^https?:\/\//, '')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Globe size={10} className={needsUrl ? 'text-rose-600' : 'opacity-60'} />
+                        {needsUrl && <span className="font-extrabold uppercase tracking-wider">{t('Add URL', 'URL দিন')}</span>}
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => (urlEditing ? cancelUrlEdit() : startUrlEdit(i))}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-white"
+                    title={urlEditing ? t('Close', 'বন্ধ') : t('Edit link', 'লিঙ্ক এডিট')}
+                    aria-label="Toggle link editor"
+                  >
+                    <Pencil size={9} className="opacity-70" />
+                  </button>
+                  <button type="button" onClick={() => remove(i)} aria-label="Delete" className="hover:opacity-70">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {urlEditing && (
+                <div className="flex flex-col gap-1 px-1">
+                  <input
+                    autoFocus
+                    value={urlEditingValue}
+                    onChange={(e) => setUrlEditingValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); saveUrlEdit(i); }
+                      else if (e.key === 'Escape') { e.preventDefault(); cancelUrlEdit(); }
+                    }}
+                    onBlur={() => saveUrlEdit(i)}
+                    placeholder="https://…"
+                    className={`w-56 rounded-lg border bg-slate-50 px-2 py-1 text-[11px] text-slate-900 focus:border-[#E31B23] focus:bg-white focus:outline-none ${
+                      urlRequired && urlEditingValue.replace(/\s+/g, ' ').trim().length === 0
+                        ? 'border-rose-300 bg-rose-50'
+                        : 'border-slate-200'
+                    }`}
+                  />
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => saveUrlEdit(i)}
+                      disabled={urlRequired && urlEditingValue.replace(/\s+/g, ' ').trim().length === 0}
+                      className="font-bold text-emerald-700 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {t('Save link', 'লিঙ্ক সেভ')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearUrl(i)}
+                      className="font-bold text-rose-600 hover:underline"
+                    >
+                      {t('Remove link', 'লিঙ্ক মুছুন')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelUrlEdit}
+                      className="font-bold text-slate-500 hover:underline"
+                    >
+                      {t('Cancel', 'বাতিল')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -1636,13 +1917,20 @@ const LangCertSection: React.FC<{
 
       <div className="mt-5 flex items-center justify-between gap-2">
         <span className="text-[11px] text-slate-500">
-          {saving ? t('Saving…', 'সংরক্ষণ হচ্ছে…') : t('Auto-saved', 'স্বয়ংক্রিয়ভাবে সংরক্ষিত')}
+          {saving
+            ? t('Saving…', 'সংরক্ষণ হচ্ছে…')
+            : dirty
+              ? t('Unsaved changes — click Save changes', 'অসংরক্ষিত পরিবর্তন — সেভ করুন')
+              : urlRequired && hasMissingRequiredUrl
+                ? t('Each certification needs a verify URL', 'প্রতিটি সার্টিফিকেশনের URL দরকার')
+                : t('Up to date', 'সব আপ টু ডেট')}
         </span>
         <SaveButton
           dirty={dirty}
           saving={saving}
           onClick={async () => {
-            if (commitTimer.current) clearTimeout(commitTimer.current);
+            // Block save if any required URL is missing.
+            if (urlRequired && hasMissingRequiredUrl) return;
             await onSave(local);
             setDirty(false);
           }}

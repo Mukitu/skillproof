@@ -9,6 +9,7 @@ import {
   signOut as authSignOut,
   resetPassword as authResetPassword,
   updatePassword as authUpdatePassword,
+  changeMyPassword as authChangeMyPassword,
   ensureProfile,
   isAdmin,
   tryRecoverSession,
@@ -28,6 +29,17 @@ interface AuthContextType {
   signOut: () => Promise<{ error: NormalizedAuthError | null }>;
   resetPassword: (email: string) => Promise<{ error: NormalizedAuthError | null }>;
   updatePassword: (password: string) => Promise<{ error: NormalizedAuthError | null }>;
+  /**
+   * Secure password change: re-authenticates with the current password,
+   * validates the new password against the SkillProof policy, then
+   * updates the password through Supabase Auth. Returns a normalised
+   * error so the UI can render a clean inline message.
+   */
+  changeMyPassword: (
+    currentPassword: string,
+    newPassword: string,
+    confirmPassword: string,
+  ) => Promise<{ error: NormalizedAuthError | null }>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
   refresh: () => Promise<void>;
   initError: NormalizedAuthError | null;
@@ -227,12 +239,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const changeMyPassword = useCallback(
+    async (currentPassword: string, newPassword: string, confirmPassword: string) => {
+      try {
+        await authChangeMyPassword(currentPassword, newPassword, confirmPassword);
+        return { error: null };
+      } catch (err) {
+        return { error: normalizeAuthError(err, 'Password change failed') };
+      }
+    },
+    [],
+  );
+
   const updateProfile = useCallback(async (data: Partial<Profile>) => {
     if (!user) throw normalizeAuthError(new Error('session_missing'), 'You are signed out.');
     const userId = user.user_id;
+    // SECURITY: profiles.email is permanently bound to the authenticated
+    // account email. Strip any attempt to overwrite it. The DB trigger
+    // fn_block_profiles_email_change would reject the UPDATE, but doing
+    // this client-side gives a clean error without a round-trip.
+    const safePatch: Partial<Profile> = { ...(data as Partial<Profile>) };
+    delete (safePatch as { email?: string }).email;
+    delete (safePatch as { user_id?: string }).user_id;
+    delete (safePatch as { id?: string }).id;
+    delete (safePatch as { role?: string }).role;
+    delete (safePatch as { role_status?: string }).role_status;
+    delete (safePatch as { is_suspended?: boolean }).is_suspended;
     const { data: updated, error } = await supabase
       .from('profiles')
-      .update(data)
+      .update(safePatch)
       .eq('user_id', userId)
       .select('*')
       .single();
@@ -258,6 +293,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         resetPassword,
         updatePassword,
+        changeMyPassword,
         updateProfile,
         refresh,
         initError,

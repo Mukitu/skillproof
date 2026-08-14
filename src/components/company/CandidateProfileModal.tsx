@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Globe,
   GraduationCap,
   Loader2,
   Lock,
@@ -30,6 +31,11 @@ import {
   getCompanyCandidateProfile,
   type CandidateProfileDetail,
 } from '../../services/candidateSearch';
+
+// Public-facing SkillProof employer verification portal. Clicking
+// "View more" deep-links the company into this URL with the candidate's
+// email pre-filled, so the live, unredacted verified CV renders.
+const EMPLOYER_VERIFY_BASE = 'https://skillproof.top/verify';
 
 interface CandidateProfileModalProps {
   profileId: string | null;
@@ -240,6 +246,25 @@ export const CandidateProfileModal: React.FC<CandidateProfileModalProps> = ({
                 icon={Mail}
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {/* Email is always exposed to approved companies — it's the
+                      account email used at signup, so it's the natural contact
+                      channel. Privacy is enforced by the company-approval gate
+                      in fn_company_get_candidate_profile. */}
+                  <div className="flex items-start gap-2">
+                    <Mail className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                        {language === 'bn' ? 'ইমেইল' : 'Email'}
+                      </p>
+                      {c.email ? (
+                        <a href={`mailto:${c.email}`} className="text-slate-900 font-bold truncate block hover:underline">{c.email}</a>
+                      ) : (
+                        <p className="text-slate-500 italic">
+                          {language === 'bn' ? 'ইমেইল পাওয়া যায়নি' : 'No email on file'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   {/* PRIVACY: Phone numbers are gated on profiles.show_phone_on_verified_profile. */}
                   <div className="flex items-start gap-2">
                     <Phone className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
@@ -456,7 +481,22 @@ export const CandidateProfileModal: React.FC<CandidateProfileModalProps> = ({
           <p className="text-[10px] text-slate-500 truncate">
             {language === 'bn' ? 'প্রোফাইল Privacy নিয়ম মেনে দেখানো হচ্ছে।' : 'Profile shown respecting candidate privacy.'}
           </p>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            {profileId && c?.email && (
+              <a
+                href={`${EMPLOYER_VERIFY_BASE}?id=${encodeURIComponent(c.email)}`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={onClose}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#0F172A] to-[#1E293B] hover:opacity-95 text-white font-bold text-xs shadow-sm"
+                title={language === 'bn'
+                  ? 'প্রার্থীর সম্পূর্ণ যাচাইকৃত CV দেখুন (SkillProof /verify)'
+                  : 'Open the candidate’s full verified CV on the public SkillProof /verify portal'}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>{language === 'bn' ? 'আরও দেখুন' : 'View more'}</span>
+              </a>
+            )}
             {profileId && (
               <button
                 type="button"

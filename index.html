@@ -2,24 +2,48 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#E31B23" />
+    <meta name="msapplication-TileColor" content="#E31B23" />
+
+    <!-- Google Search Console verification -->
+    <meta name="google-site-verification" content="9hBVQJSbaU4_-b0QAiQlbk65WV2DrZe1sCulhieyGHo" />
+
+    <!-- Default SEO for the SPA shell (overridden per-route by usePageSEO) -->
     <title>SkillProof — Verify Skills. Build Passports. Get Hired.</title>
     <meta
       name="description"
-      content="Bangladesh's premier Skill Verification and Career Development Platform. Verify a Skill Passport by ID or QR code."
+      content="SkillProof is Bangladesh's AI-powered skill verification and career platform. Build a digital Skill Passport, follow structured career roadmaps, and connect with verified employers."
     />
+    <meta name="keywords" content="skill verification Bangladesh, skill assessment, verified candidates, digital skill passport, career platform Bangladesh, recruitment platform, employee skill verification" />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <meta name="author" content="Mukitu Islam Nishat" />
+    <meta name="geo.region" content="BD" />
+    <meta name="geo.placename" content="Bangladesh" />
+    <link rel="canonical" href="https://skillproof.top/" />
 
-    
+    <!-- Open Graph (defaults — overridden by usePageSEO per route) -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SkillProof Bangladesh" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:title" content="SkillProof — Verify Skills. Build Passports. Get Hired." />
-    <meta property="og:description" content="Verify any Skill Passport by ID or QR code. Real-time lookup against the SkillProof database." />
+    <meta property="og:description" content="Bangladesh's AI-powered skill verification and career platform. Verify any Skill Passport by ID or QR code." />
+    <meta property="og:url" content="https://skillproof.top/" />
+    <meta property="og:image" content="https://skillproof.top/brand/og-image.png" />
+    <meta property="og:image:secure_url" content="https://skillproof.top/brand/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SkillProof — Verify Skills. Build Passports. Get Hired." />
+
+    <!-- Twitter / X card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="SkillProof — Verify Skills. Build Passports. Get Hired." />
-    <meta name="twitter:description" content="Verify any Skill Passport by ID or QR code. Real-time lookup against the SkillProof database." />
-    <link rel="canonical" href="https://skillproof.top" />
+    <meta name="twitter:description" content="Bangladesh's AI-powered skill verification and career platform. Verify any Skill Passport by ID or QR code." />
+    <meta name="twitter:image" content="https://skillproof.top/brand/og-image.png" />
+    <meta name="twitter:image:alt" content="SkillProof — Verify Skills. Build Passports. Get Hired." />
 
-    
+    <!-- Favicons & app icons -->
     <link rel="icon" type="image/svg+xml" href="/brand/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="48x48" href="/brand/favicon-48.png" />
@@ -28,16 +52,71 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png" />
     <link rel="shortcut icon" href="/brand/favicon.ico" />
 
-    
-    <meta name="theme-color" content="#E31B23" />
-    <meta name="msapplication-TileColor" content="#E31B23" />
+    <!-- Performance: preconnect to GTM for faster script load -->
+    <link rel="preconnect" href="https://www.googletagmanager.com" />
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
 
-    
-    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
+    <!-- Google Tag Manager -->
+    <script>
+      (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+      new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+      j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+      'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+      })(window,document,'script','dataLayer','GTM-5D65JJRM');
+    </script>
+    <!-- End Google Tag Manager -->
+
+    <!-- Organization & WebSite Schema.org (default; pages can extend) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://skillproof.top/#organization",
+            "name": "SkillProof",
+            "alternateName": "SkillProof Bangladesh",
+            "url": "https://skillproof.top/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://skillproof.top/brand/og-image.png",
+              "width": 1200,
+              "height": 630
+            },
+            "description": "AI-powered skill verification and career platform for Bangladesh.",
+            "founder": {
+              "@type": "Person",
+              "name": "Mukitu Islam Nishat",
+              "url": "https://skillproof.top/owner"
+            },
+            "areaServed": {
+              "@type": "Country",
+              "name": "Bangladesh"
+            },
+            "sameAs": [
+              "https://skillproof.top/owner"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://skillproof.top/#website",
+            "url": "https://skillproof.top/",
+            "name": "SkillProof",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://skillproof.top/#organization" }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript>
+      <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5D65JJRM"
+        height="0" width="0" style="display:none;visibility:hidden"></iframe>
+    </noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

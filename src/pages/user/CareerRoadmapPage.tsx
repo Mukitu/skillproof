@@ -1,12 +1,12 @@
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Key as ReactKey } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Archive, BookOpen, Calendar, CheckCircle2, ChevronRight, Clock,
   Filter, Library, Link2, ListOrdered, Loader2, Lock, Play, Search,
   Sparkles, Target, TrendingUp, Unlock, Youtube, Award, GraduationCap,
-  ListChecks, NotebookPen, ExternalLink, ShieldCheck, XCircle,
+  ListChecks, NotebookPen, ExternalLink, ShieldCheck, XCircle, HelpCircle, X,
 } from 'lucide-react';
 import {
   completeEnrollmentDay, enrollInRoadmap, getEnrollmentModules,
@@ -131,10 +131,15 @@ function LibraryAndMyRoadmaps({ onOpenEnrollment }: { onOpenEnrollment: (id: str
   return (
     <div className="space-y-8">
       {}
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 p-5 sm:p-6 text-white shadow">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-wide opacity-80"><Sparkles size={14} /> স্কিলপ্রুফ রোডম্যাপ</div>
-        <h1 className="mt-2 text-2xl font-bold sm:text-3xl break-words">ক্যারিয়ার রোডম্যাপ লাইব্রেরি</h1>
-        <p className="mt-1 max-w-2xl text-sm opacity-90 break-words">একাধিক রোডম্যাপে একসাথে enroll করুন। প্রতিটি দিন আগের দিন সম্পন্ন হওয়ার ২৪ ঘণ্টা পরে খোলে — সার্ভার-সাইড enforced।</p>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 p-5 sm:p-6 text-white shadow">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wide opacity-80"><Sparkles size={14} /> স্কিলপ্রুফ রোডম্যাপ</div>
+            <h1 className="mt-2 text-2xl font-bold sm:text-3xl break-words">ক্যারিয়ার রোডম্যাপ লাইব্রেরি</h1>
+            <p className="mt-1 max-w-2xl text-sm opacity-90 break-words">একাধিক রোডম্যাপে একসাথে enroll করুন। প্রতিটি দিন আগের দিন সম্পন্ন হওয়ার ২৪ ঘণ্টা পরে খোলে — সার্ভার-সাইড enforced।</p>
+          </div>
+          <UserManualButton />
+        </div>
       </div>
 
       {error && <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -712,4 +717,157 @@ function Section({ title, icon, body, children }: { title: string; icon: any; bo
       {body ?? children}
     </div>
   );
+}
+
+
+// ============================================================================
+// User Manual Button — animated help icon with popover (Bangla instructions)
+// ============================================================================
+function UserManualButton() {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; placement: 'bottom' | 'top' }>({ top: 0, left: 0, placement: 'bottom' });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  // Calculate popover position relative to button — keeps it on-screen everywhere
+  const updatePosition = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const popW = 320; // matches sm:w-80
+    const popH = popoverRef.current?.offsetHeight ?? 180;
+    const margin = 12;
+
+    // Horizontal: align popover's right edge with button's right edge, but keep on-screen
+    let left = rect.right - popW;
+    if (left < margin) left = margin;
+    if (left + popW > window.innerWidth - margin) left = window.innerWidth - popW - margin;
+
+    // Vertical: prefer below the button; if not enough room, place above
+    const spaceBelow = window.innerHeight - rect.bottom;
+    let top = rect.bottom + margin;
+    let placement: 'bottom' | 'top' = 'bottom';
+    if (spaceBelow < popH + margin && rect.top - popH - margin > margin) {
+      top = rect.top - popH - margin;
+      placement = 'top';
+    }
+
+    setPos({ top, left, placement });
+  }, []);
+
+  // Close on outside click / Escape; reposition on scroll/resize while open
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (buttonRef.current && buttonRef.current.contains(target)) return;
+      if (popoverRef.current && popoverRef.current.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, updatePosition]);
+
+  return (
+    <>
+      <div className="shrink-0">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label="User manual"
+          aria-expanded={open}
+          className="group relative inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/30 backdrop-blur transition-all duration-300 hover:scale-105 hover:bg-white/25 hover:ring-white/60 hover:shadow-lg hover:shadow-white/20 active:scale-95 sm:text-sm"
+        >
+          <span className="absolute inset-0 -z-10 rounded-full bg-white/20 opacity-0 blur-md transition-opacity duration-500 group-hover:opacity-100" />
+          <span className="relative inline-flex h-5 w-5 items-center justify-center sm:h-6 sm:w-6">
+            <HelpCircle
+              size={16}
+              className="transition-all duration-500 group-hover:rotate-12 group-hover:scale-110 sm:hidden"
+            />
+            <HelpCircle
+              size={18}
+              className="hidden transition-all duration-500 group-hover:rotate-12 group-hover:scale-110 sm:block"
+            />
+            <span className="absolute -top-0.5 -right-0.5 inline-flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-300 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-400" />
+            </span>
+          </span>
+          <span className="hidden sm:inline">User Manual</span>
+          <span className="inline sm:hidden">Manual</span>
+        </button>
+      </div>
+
+      {/* Fixed popover — positioned via JS so it never overflows the viewport */}
+      {open && (
+        <div
+          ref={popoverRef}
+          role="dialog"
+          aria-label="ব্যবহার নির্দেশিকা"
+          style={{ top: pos.top, left: pos.left }}
+          className="fixed z-[100] w-[min(20rem,calc(100vw-1.5rem))] animate-[fadeSlideIn_0.25s_ease-out] rounded-2xl border border-white/40 bg-white/95 p-4 text-slate-800 shadow-2xl shadow-indigo-900/30 backdrop-blur sm:w-80"
+        >
+          {/* caret pointing at the button */}
+          <span
+            className={`absolute h-3 w-3 rotate-45 border-l border-t border-white/40 bg-white/95 ${
+              pos.placement === 'bottom' ? '-top-2 right-6' : '-bottom-2 right-6 border-b border-r border-l-0 border-t-0'
+            }`}
+          />
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow">
+                <HelpCircle size={14} />
+              </span>
+              <h3 className="text-sm font-bold text-slate-900">User Manual</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+              className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <p className="text-xs leading-relaxed text-slate-700">
+            <span lang="bn">নিচের যেকোনো রোডম্যাপে </span>
+            <span className="font-bold text-blue-600">Enroll</span>
+            <span lang="bn"> বাটনে ক্লিক করুন এবং ওই রোডম্যাপটিতে </span>
+            <span className="font-bold text-blue-600">আমার রোডম্যাপ</span>
+            <span lang="bn"> সেকশনে দেখুন — সেখান থেকে ঢুকে প্রতিদিনের টাস্ক সম্পন্ন করে </span>
+            <span className="font-bold text-emerald-600">Mark as Complete</span>
+            <span lang="bn"> করুন। এরপর ২৪ ঘণ্টা পর পরবর্তী মডিউল আনলক হবে।</span>
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+
+// Keyframes for the user-manual popover animation
+const style = document.createElement('style');
+style.textContent = `
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+`;
+if (typeof document !== 'undefined' && !document.getElementById('user-manual-styles')) {
+  style.id = 'user-manual-styles';
+  document.head.appendChild(style);
 }

@@ -6,7 +6,6 @@ import {
   Briefcase,
   User,
   LogOut,
-  BookOpen,
   Settings,
   Award,
   Languages,
@@ -167,21 +166,12 @@ export const Navbar: React.FC = () => {
 
         {}
         <nav className="hidden md:flex items-center gap-4 lg:gap-5 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 min-w-0">
-          {isUserAuthed ? (
-            <Link
-              to="/dashboard"
-              className={`transition-all hover:text-[#F97316] py-1 flex items-center gap-1.5 ${isActive('/dashboard') ? 'text-[#F97316] border-b-2 border-[#F97316] font-black' : ''}`}
-            >
-              <LayoutDashboard className="w-4 h-4 text-[#F97316]" /> {language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}
-            </Link>
-          ) : (
-            <Link
-              to="/how-it-works"
-              className={`transition-all hover:text-[#F97316] py-1 flex items-center gap-1.5 ${isActive('/how-it-works') ? 'text-[#F97316] border-b-2 border-[#F97316] font-black' : ''}`}
-            >
-              <BookOpen className="w-4 h-4 text-[#F97316]" /> {t('navHowItWorks')}
-            </Link>
-          )}
+          <Link
+            to="/dashboard"
+            className={`transition-all hover:text-[#F97316] py-1 flex items-center gap-1.5 ${isActive('/dashboard') ? 'text-[#F97316] border-b-2 border-[#F97316] font-black' : ''}`}
+          >
+            <LayoutDashboard className="w-4 h-4 text-[#F97316]" /> {language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}
+          </Link>
           <Link to="/dashboard/jobs" className={`transition-all hover:text-[#F97316] py-1 flex items-center gap-1.5 ${isActive('/dashboard/jobs') ? 'text-[#F97316] border-b-2 border-[#F97316] font-black' : ''}`}>
             <Briefcase className="w-4 h-4 text-[#F97316]" /> {t('navJobPortal')}
           </Link>
@@ -516,20 +506,13 @@ export const Navbar: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-1 font-bold text-slate-700 dark:text-slate-300">
-              {isUserAuthed ? (
-                <Link
-                  to="/dashboard"
-                  className={`px-3 py-2.5 rounded-xl hover:bg-orange-500/10 hover:text-[#F97316] flex items-center gap-2 transition-colors ${isActive('/dashboard') ? 'bg-orange-500/10 text-[#F97316]' : ''}`}
-                >
-                  <LayoutDashboard className="w-4 h-4 text-[#F97316]" />
-                  <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
-                </Link>
-              ) : (
-                <Link to="/how-it-works" className="px-3 py-2.5 rounded-xl hover:bg-orange-500/10 hover:text-[#F97316] flex items-center gap-2 transition-colors">
-                  <BookOpen className="w-4 h-4 text-[#F97316]" />
-                  <span>{t('navHowItWorks')}</span>
-                </Link>
-              )}
+              <Link
+                to="/dashboard"
+                className={`px-3 py-2.5 rounded-xl hover:bg-orange-500/10 hover:text-[#F97316] flex items-center gap-2 transition-colors ${isActive('/dashboard') ? 'bg-orange-500/10 text-[#F97316]' : ''}`}
+              >
+                <LayoutDashboard className="w-4 h-4 text-[#F97316]" />
+                <span>{language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
+              </Link>
               <Link to="/dashboard/jobs" className={`px-3 py-2.5 rounded-xl hover:bg-orange-500/10 hover:text-[#F97316] flex items-center gap-2 transition-colors ${isActive('/dashboard/jobs') ? 'bg-orange-500/10 text-[#F97316]' : ''}`}>
                 <Briefcase className="w-4 h-4 text-[#F97316]" />
                 <span>{t('navJobPortal')}</span>

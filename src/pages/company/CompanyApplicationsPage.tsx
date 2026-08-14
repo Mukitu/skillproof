@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   Eye,
   EyeOff,
   Filter,
@@ -99,6 +100,7 @@ interface ApplicationCardProps {
   language: 'bn' | 'en';
   busy: boolean;
   onView: (row: CompanyApplicationRow) => void;
+  onViewMore: (row: CompanyApplicationRow) => void;
   onTransition: (id: string, status: CompanyApplicationStatus, note?: string) => void;
   onReject: (row: CompanyApplicationRow) => void;
   onConfirmAction: (row: CompanyApplicationRow, status: CompanyApplicationStatus) => void;
@@ -111,6 +113,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
   language,
   busy,
   onView,
+  onViewMore,
   onTransition,
   onReject,
   onConfirmAction,
@@ -202,10 +205,20 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
         <button
           type="button"
           onClick={() => onView(row)}
-          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-bold text-[11px]"
+          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-[#E31B23] to-[#F97316] hover:opacity-95 text-white font-bold text-[11px] shadow-sm"
         >
           <Eye className="w-3.5 h-3.5" />
           <span>{language === 'bn' ? 'প্রোফাইল' : 'View Profile'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onViewMore(row)}
+          title={language === 'bn' ? 'SkillProof /verify তে সম্পূর্ণ যাচাইকৃত CV দেখুন' : 'Open full verified CV on SkillProof /verify'}
+          className="inline-flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-[11px]"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">{language === 'bn' ? 'আরও দেখুন' : 'View more'}</span>
         </button>
 
         <button
@@ -508,6 +521,15 @@ export const CompanyApplicationsPage: React.FC<CompanyApplicationsPageProps> = (
     setActiveProfileName(row.applicant_name);
   };
 
+  // "View more" / "View Profile" on the card opens the in-app profile
+  // modal. The modal footer carries the deep-link to the public
+  // SkillProof /verify portal (using the candidate's account email).
+  // That way the recruiter sees both: the curated in-app summary AND
+  // the live, unredacted verified CV — same affordance, same flow.
+  const handleViewMore = (row: CompanyApplicationRow) => {
+    openProfile(row);
+  };
+
   const handleConfirmAction = (row: CompanyApplicationRow, status: CompanyApplicationStatus) => {
     setConfirmState({ row, status });
   };
@@ -791,6 +813,7 @@ export const CompanyApplicationsPage: React.FC<CompanyApplicationsPageProps> = (
                   language={language}
                   busy={isPending(row.id)}
                   onView={openProfile}
+                  onViewMore={handleViewMore}
                   onTransition={(id, status) => handleTransition(id, status)}
                   onReject={(r) => handleReject(r)}
                   onConfirmAction={handleConfirmAction}

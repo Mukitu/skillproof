@@ -243,7 +243,7 @@ export async function getPublicCertificateBundle(
 
 export async function logPublicVerification(
   credentialNumber: string,
-  result: 'verified' | 'revoked' | 'not_found',
+  result: 'verified' | 'revoked' | 'not_found' | 'private',
   referer?: string,
 ): Promise<void> {
   try {

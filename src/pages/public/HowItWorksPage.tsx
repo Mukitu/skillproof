@@ -2,6 +2,7 @@ import React from 'react';
 import { ShieldCheck, ArrowRight } from 'lucide-react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Footer } from '../../components/layout/Footer';
+import { SEOHead } from '../../components/public/SEOHead';
 import { useLanguage } from '../../context/LanguageContext';
 
 export const HowItWorksPage: React.FC = () => {
@@ -26,6 +27,31 @@ export const HowItWorksPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      <SEOHead
+        pageKey="how-it-works"
+        path="/how-it-works"
+        title="How SkillProof Works — Verify Your Real Skills"
+        description="A step-by-step guide to how SkillProof verifies real skills in Bangladesh. Pick a field, build your career profile, follow a roadmap, complete assessments, and earn a verified Skill Passport."
+        breadcrumbs={[
+          { name: 'Home', url: '/' },
+          { name: 'How It Works', url: '/how-it-works' },
+        ]}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'HowTo',
+          name: 'How SkillProof works',
+          description:
+            'A transparent process that proves what you can really do through real work — for every career, in every field.',
+          step: [
+            { '@type': 'HowToStep', position: 1, name: 'Choose Your Field', text: 'Pick a field — Technology, Creative, Business, Professional, or Education.' },
+            { '@type': 'HowToStep', position: 2, name: 'Build Your Career Profile', text: 'Upload your CV/resume and let SkillProof AI organise your skills.' },
+            { '@type': 'HowToStep', position: 3, name: 'Follow a Career Roadmap', text: 'Modules unlock one by one every 24 hours.' },
+            { '@type': 'HowToStep', position: 4, name: 'Complete Assessments', text: 'Complete realistic assessments or submit work samples for senior review.' },
+            { '@type': 'HowToStep', position: 5, name: 'Earn Your Skill Passport', text: 'A single Skill Passport per skill upgrades to Level 1, 2, or 3.' },
+            { '@type': 'HowToStep', position: 6, name: 'Share with Employers', text: 'Share your public passport link — anyone can verify it instantly.' },
+          ],
+        }}
+      />
       <Navbar />
       <main className="flex-1 py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">

@@ -4,7 +4,7 @@ import { API_BASE_URL, apiUrl } from '../config/api';
 import { normalizePassportId } from '../utils/appUrl';
 import type {
   Profile, SkillPassport, PublicCandidateVerification,
-  PublicVerificationResponse,
+  PublicVerificationResponse, PublicCompanyVerification,
 } from '../types/database';
 
 /**
@@ -318,6 +318,23 @@ export async function verifyCandidate(
   const normalised = isEmail ? raw.toLowerCase() : normalizePassportId(raw);
   if (!normalised) return null;
 
+  // ---------------------------------------------------------------------
+  // Step 1 — if the input is email-shaped, first check whether it's a
+  // SkillProof company Gmail. Companies render as their own minimal
+  // card (name + logo only) and never expose personal candidate data.
+  // Falls through to the candidate path if no company matches.
+  // ---------------------------------------------------------------------
+  if (isEmail) {
+    try {
+      const company = await lookupCompanyByEmail(normalised);
+      if (company) return company;
+    } catch (err) {
+      // Best-effort: a transient RPC failure must not block the
+      // candidate path. Log + continue.
+      console.warn('[publicPassport] fn_public_company_lookup failed; falling back to candidate lookup.', err);
+    }
+  }
+
   const apiBase = (API_BASE_URL || '').trim();
   const payload = isEmail ? { email: normalised } : { query: normalised };
 
@@ -355,10 +372,15 @@ export async function verifyCandidate(
     }
   }
 
-  // Direct Supabase fallback. Pick the right RPC based on input shape.
-  const { data, error } = isEmail
-    ? await supabase.rpc('fn_public_candidate_verification_by_email', { p_email: normalised })
-    : await supabase.rpc('fn_public_candidate_verification_universal', { p_query: normalised });
+  // Direct Supabase fallback. Use the new unified entry-point that
+  // resolves by email OR by passport identifier in a single call. The
+  // unified RPC applies the new Employer Verification master switch
+  // and per-section privacy gates (show_*, hide_*) on top of the
+  // legacy per-passport payload, so the frontend can render the
+  // Digital CV without branching on the input shape.
+  const { data, error } = await supabase.rpc('fn_public_candidate_unified_view', {
+    p_query: normalised,
+  });
   if (error) throw error;
   if (!data) return null;
   return unwrapVerificationEnvelope(data) as PublicVerificationResponse;
@@ -384,6 +406,58 @@ function isEmailShaped(raw: string): boolean {
     return false;
   }
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+/**
+ * Look up a SkillProof company account by email.
+ *
+ * Calls the public RPC `fn_public_company_lookup(p_email)` introduced
+ * in migration 20260814000020. Returns the typed
+ * `PublicCompanyVerification` payload (kind: 'company', company: {...})
+ * the /verify page renders as a minimal company card. Returns null
+ * when no company matches so the caller can fall through to the
+ * candidate passport lookup.
+ *
+ * The RPC reads from `public.companies` live — any admin update in
+ * Supabase (or owner-side update via the dashboard) auto-reflects on
+ * the next call without cache invalidation.
+ */
+export async function lookupCompanyByEmail(
+  email: string,
+): Promise<PublicCompanyVerification | null> {
+  const e = (email ?? '').trim().toLowerCase();
+  if (!e) return null;
+
+  const { data, error } = await supabase.rpc('fn_public_company_lookup', {
+    p_email: e,
+  });
+  if (error) {
+    // Surface as a warning — never throw, since this is a soft
+    // pre-check that should fall through to the candidate path.
+    console.warn('[publicPassport] fn_public_company_lookup error:', error);
+    return null;
+  }
+  if (!data || typeof data !== 'object') return null;
+
+  const payload = data as { kind?: string; result?: string; company?: any };
+  if (payload.kind !== 'company' || !payload.company) return null;
+
+  return {
+    kind: 'company',
+    result: 'verified',
+    company: {
+      id: String(payload.company.id ?? ''),
+      name: String(payload.company.name ?? payload.company.company_name ?? 'SkillProof Company'),
+      logo_url: payload.company.logo_url ?? null,
+      logo_path: payload.company.logo_path ?? null,
+      email: String(payload.company.email ?? e),
+      website_url: payload.company.website_url ?? null,
+      category: payload.company.category ?? null,
+      status: payload.company.status ?? null,
+      created_at: payload.company.created_at ?? null,
+      updated_at: payload.company.updated_at ?? null,
+    },
+  };
 }
 
 

@@ -53,11 +53,22 @@ export async function getMyPublicProfileId(): Promise<string | null> {
 export async function updateProfile(patch: Partial<Profile>): Promise<Profile> {
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated');
+  // SECURITY: profiles.email is permanently bound to the authenticated
+  // account email. Strip any client-side attempt to overwrite it. The
+  // DB trigger fn_block_profiles_email_change would also reject this,
+  // but stripping client-side gives a clean error without a round-trip.
+  const safePatch: Partial<Profile> = { ...(patch as Partial<Profile>) };
+  delete (safePatch as { email?: string }).email;
+  delete (safePatch as { user_id?: string }).user_id;
+  delete (safePatch as { id?: string }).id;
+  delete (safePatch as { role?: string }).role;
+  delete (safePatch as { role_status?: string }).role_status;
+  delete (safePatch as { is_suspended?: boolean }).is_suspended;
   const { data, error } = await supabase
-    .from('profiles').update(patch).eq('user_id', user.id).select('*').single();
+    .from('profiles').update(safePatch).eq('user_id', user.id).select('*').single();
   if (error) throw error;
   const row = data as Profile;
-  const changed = Object.keys(patch);
+  const changed = Object.keys(safePatch);
   void logActivity('profile.updated', `Updated profile fields: ${changed.join(', ')}`, {
     entityType: 'profile',
     entityId: row.id,

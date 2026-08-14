@@ -8,29 +8,41 @@
  * Designed for the /verify/:passportNumber public route. Surfaces ONLY
  * the public, verified fields that the backend RPC + sanitiser allow.
  *
- * Sections (in order):
- *   1. Header (avatar, name, professional title, verified badge, passport #)
- *   2. Contact (phone gated by show_phone_on_verified_profile, public links)
- *   3. Education
- *   4. Experience
- *   5. Verified Skills (with verified badge + score + date)
- *   6. Certificates (verified only)
- *   7. Projects (public only)
- *   8. Career Roadmap (completed items only)
- *   9. AI Career Profile (gated by hide_ai_on_verified_profile)
- *  10. Career Intelligence — full dashboard-grade analysis
- *      (gated by hide_ai_on_verified_profile): scores, strengths, gaps,
- *      matches, market readiness, 30/60/90-day plan, AI summary.
- *  11. Public Evidence (gated by hide_evidence_on_verified_profile)
- *  12. Career Activity Timeline (gated by hide_timeline_on_verified_profile)
- *  13. Verification info
+ * Layout — follows the order a recruiter expects on a real recruitment
+ * platform's public CV:
  *
- * Layout highlights:
- *   - Mobile responsive, desktop responsive, A4 print-friendly.
- *   - Print/PDF button: window.print() with print-friendly CSS.
- *   - No unnecessary animations.
- *   - Phone is rendered ONLY when the backend explicitly returns it AND
- *     the show_phone_on_verified_profile flag is true.
+ *   1.  Header strip (avatar, name, title, location, passport status)
+ *   2.  Passport Result banner (Verified / Pending / Expired / etc.)
+ *   3.  Score / KPIs row
+ *   4.  Profile Completeness
+ *   5.  Personal Information         ← always renders (placeholder if empty)
+ *   6.  Career Information           ← always renders
+ *   7.  Education
+ *   8.  Experience
+ *   9.  Skills (with verify links)
+ *  10.  Languages
+ *  11.  Certifications (course completions)
+ *  12.  Portfolio & Social Links
+ *  ─── Verification & Credentials ───
+ *  13.  Verification Category        (Bronze / Silver / Gold / Platinum)
+ *  14.  Verified Categories          (per-category breakdown)
+ *  15.  Verified Career Summary      (flat per-career chips)
+ *  16.  Assessment History           (every task + marks + status)
+ *  17.  Verified Skills              (Passed only — assessment name + score)
+ *  18.  Assessment Summary           (KPIs + strongest + needs improvement)
+ *  19.  Skill Passports              (multi-passport cards)
+ *  20.  AI Career Profile            (gated)
+ *  21.  Career Intelligence          (gated)
+ *  22.  Public Evidence              (gated)
+ *  23.  Career Activity Timeline     (gated)
+ *  24.  Verification info
+ *
+ * Every section renders — even when empty — with a friendly
+ * "No data added yet" placeholder so the page always reads as a
+ * complete CV template rather than appearing to be missing sections.
+ *
+ * Print/PDF: window.print() with print-friendly CSS.
+ * No unnecessary animations.
  */
 
 import React, { useMemo, useState } from 'react';
@@ -38,6 +50,7 @@ import {
   Activity,
   Award,
   BadgeCheck,
+  BookOpen,
   Briefcase,
   Building2,
   Calendar,
@@ -49,6 +62,7 @@ import {
   Globe,
   GraduationCap,
   Hash,
+  Hash as HashIcon,
   Layers,
   Linkedin,
   Lightbulb,
@@ -72,6 +86,7 @@ import type { ReactNode } from 'react';
 import type {
   PublicCandidatePassportItem,
   PublicCandidateVerification,
+  PublicVerificationCategory,
   PublicVerificationResult,
 } from '../../types/database';
 
@@ -85,7 +100,7 @@ function initials(name: string): string {
     .join('');
 }
 
-function fmtDate(value: string | null | undefined, fallback = ''): string {
+function fmtDate(value: string | number | null | undefined, fallback = ''): string {
   if (!value) return fallback;
   try {
     const d = new Date(value);
@@ -101,6 +116,14 @@ interface Props {
   showAdminActions?: boolean;
 }
 
+/** Empty-state placeholder shown when a section has no data. */
+function EmptyNote({ message }: { message: string }) {
+  return (
+    <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium italic text-slate-500">
+      {message}
+    </p>
+  );
+}
 
 export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) {
   const candidate = payload.candidate;
@@ -118,9 +141,7 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
   const showPhone = Boolean(candidate?.show_phone_on_verified_profile);
   const phone = showPhone ? candidate?.phone ?? null : null;
 
-  // Per-section hide toggles — the candidate can opt out of having any
-  // of these sections rendered on the public CV. Defaults to FALSE
-  // (i.e. everything is visible unless explicitly hidden).
+  // Per-section hide toggles.
   const hideAi = Boolean(
     payload.hide_ai_on_verified_profile ?? candidate?.hide_ai_on_verified_profile ?? false,
   );
@@ -133,14 +154,23 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
 
   const overallScore = payload.overall_score;
   const result = payload.result;
+  const verificationCategory = (payload.verification_category ?? 'Unranked') as PublicVerificationCategory;
+  const verificationCategoryLabel =
+    payload.verification_category_label ??
+    ({
+      Unranked: 'No assessments passed yet',
+      Bronze: 'Verified learner',
+      Silver: 'Verified professional',
+      Gold: 'Highly verified professional',
+      Platinum: 'Top-tier verified expert',
+    } as Record<PublicVerificationCategory, string>)[verificationCategory] ??
+    '';
 
-  // Completed roadmap totals — backend already restricts to completed.
   const completedRoadmaps = payload.completed_roadmaps ?? [];
   const roadmapItems = payload.roadmap_progress_items ?? [];
   const completedRoadmapCount = completedRoadmaps.length;
   const completedMilestoneCount = roadmapItems.length;
 
-  // Unique roadmap titles for the "8/10 completed" style metric.
   const roadmapTitles = useMemo(() => {
     const titles = new Set<string>();
     for (const r of completedRoadmaps) {
@@ -168,7 +198,7 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
           'rounded-2xl '
         }
       >
-        {/* ---------- Header strip ---------- */}
+        {/* ---------- 1. Header strip ---------- */}
         <header className="overflow-hidden rounded-t-2xl">
           <div
             aria-hidden="true"
@@ -178,6 +208,10 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 'linear-gradient(90deg,#E31B23 0%,#F97316 55%,#FF8A00 100%)',
             }}
           />
+
+          {/* Passport Result banner */}
+          <PassportResultBanner result={result} verifiedAt={verifiedAt} />
+
           <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-6 sm:p-8">
             <div className="flex items-center gap-4">
               <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-amber-400 to-rose-600 ring-2 ring-amber-300/60 sm:h-24 sm:w-24">
@@ -208,7 +242,7 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                   </p>
                 ) : null}
                 <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-500">
-                  <Hash className="h-3 w-3" /> {passportNumber || ''}
+                  <HashIcon className="h-3 w-3" /> {passportNumber || ''}
                 </p>
                 {(candidate?.district || candidate?.country || candidate?.main_category) ? (
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
@@ -226,10 +260,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                   </div>
                 ) : null}
 
-                {/* Verified Career Categories — every career category where
-                    the candidate has at least one verified skill. Drives the
-                    "Career Categories" chip row. Each chip becomes a link to
-                    the matching section further down. */}
                 {payload.verified_career_summary && payload.verified_career_summary.length > 0 ? (
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -268,13 +298,10 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
             </div>
 
             <div className="flex items-center justify-end gap-2">
-              {/* Print / Save as PDF removed — SkillProof Passport is now
-                  a digital-only credential. Use the verification link
-                  or the QR code on this page to verify the candidate. */}
+              {/* Print / Save as PDF removed — SkillProof Passport is a digital-only credential. */}
             </div>
           </div>
 
-          {/* Mobile-only verified badge row */}
           <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-6 py-3 sm:hidden">
             <VerifiedBadge verified={payload.verified_by_skillproof === true} status={result} />
             {verifiedAt ? (
@@ -283,12 +310,12 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
           </div>
         </header>
 
-        {/* ---------- Score / KPIs ---------- */}
+        {/* ---------- 2. Score / KPIs ---------- */}
         <section className="grid grid-cols-2 gap-3 border-b border-slate-100 px-6 py-5 sm:grid-cols-4 sm:px-8">
           <Kpi
-            label="Overall / 100"
-            value={overallScore != null ? String(overallScore) : ''}
-            tone={overallScore != null && overallScore >= 70 ? 'emerald' : 'default'}
+            label="Overall / 10"
+            value={overallScore != null ? Number(overallScore).toFixed(1) : ''}
+            tone={overallScore != null && Number(overallScore) >= 7 ? 'emerald' : 'default'}
           />
           <Kpi label="Passed" value={String(payload.passed_count ?? 0)} />
           <Kpi
@@ -306,48 +333,18 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
           />
         </section>
 
-        {/* ---------- Profile Completeness ---------- */}
+        {/* ---------- 3. Profile Completeness ---------- */}
         {(() => {
           const pc: any = (payload as any).profile_completeness ?? null;
           const score = typeof pc === 'object' && pc && typeof pc.score === 'number'
             ? pc.score
             : (typeof pc === 'number' ? pc : null);
-          // Hide the section entirely when there is no real data. We do
-          // not surface "0%" — a missing score is information, not a 0%.
           if (score == null || score <= 0) return null;
           const breakdown: Record<string, { complete: boolean; weight?: number }> =
             pc && typeof pc === 'object' && pc.breakdown && typeof pc.breakdown === 'object'
               ? pc.breakdown
               : {};
           const entries = Object.entries(breakdown);
-          if (entries.length === 0) {
-            // Even if no breakdown, show the headline score.
-            return (
-              <section className="border-b border-slate-100 px-6 py-5 sm:px-8">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      Profile Completeness
-                    </p>
-                    <p className="mt-0.5 text-2xl font-black text-slate-900">
-                      {Math.max(0, Math.min(100, Math.round(score)))}%
-                    </p>
-                  </div>
-                  <div className="flex-1 max-w-[260px]">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className={
-                          'h-full rounded-full ' +
-                          (score >= 80 ? 'bg-emerald-500' : score >= 50 ? 'bg-amber-500' : 'bg-rose-500')
-                        }
-                        style={{ width: `${Math.max(0, Math.min(100, Math.round(score)))}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </section>
-            );
-          }
           return (
             <section className="border-b border-slate-100 px-6 py-5 sm:px-8">
               <div className="flex items-center justify-between gap-3">
@@ -371,240 +368,215 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                   </div>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                {entries.map(([key, val]) => (
-                  <div
-                    key={key}
-                    className={
-                      'flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-semibold ' +
-                      (val?.complete
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                        : 'border-slate-200 bg-slate-50 text-slate-500')
-                    }
-                  >
-                    <span className={val?.complete ? 'text-emerald-600' : 'text-slate-400'}>
-                      {val?.complete ? '✓' : '○'}
-                    </span>
-                    <span className="truncate">
-                      {key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {entries.length > 0 && (
+                <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                  {entries.map(([key, val]) => (
+                    <div
+                      key={key}
+                      className={
+                        'flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-semibold ' +
+                        (val?.complete
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 bg-slate-50 text-slate-500')
+                      }
+                    >
+                      <span className={val?.complete ? 'text-emerald-600' : 'text-slate-400'}>
+                        {val?.complete ? '✓' : '○'}
+                      </span>
+                      <span className="truncate">
+                        {key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           );
         })()}
 
-        {/* ---------- Professional Summary ---------- */}
-        {(() => {
-          const summary =
-            (payload.resume_professional?.summary ?? '').trim() ||
-            (candidate?.experience_summary ?? '').trim() ||
-            (candidate?.bio ?? '').trim() ||
-            null;
-          const headline =
-            (payload.resume_professional?.headline ?? '').trim() ||
-            candidate?.current_position ||
-            candidate?.profession ||
-            null;
-          if (!summary && !headline) return null;
-          return (
-            <Section
-              title="Professional Summary"
-              icon={<FileText className="h-4 w-4" />}
-            >
-              <div className="space-y-2">
+        {/* ---------- 4. Personal Information (always renders) ---------- */}
+        <Section title="Personal Information" icon={<UserIcon className="h-4 w-4" />}>
+          {(() => {
+            const p = payload.personal_information ?? null;
+            const phoneValue = phone ?? p?.phone ?? null;
+            const gender = candidate?.gender ?? p?.gender ?? null;
+            const dob = candidate?.date_of_birth ?? p?.date_of_birth ?? null;
+            const address = candidate?.address ?? p?.address ?? null;
+            const org = candidate?.current_organization ?? p?.current_organization ?? null;
+            const country = p?.country ?? candidate?.country ?? null;
+            const district = p?.district ?? candidate?.district ?? null;
+            const division = p?.division ?? candidate?.division ?? null;
+            const totalExp =
+              payload.career_information?.total_experience ??
+              candidate?.total_experience ??
+              null;
+            const expYears =
+              payload.career_information?.experience_years ??
+              candidate?.experience_years ??
+              null;
+            const email = p?.email ?? null;
+            const emailVerified = p?.email_verified ?? candidate?.email_verified ?? null;
+
+            const rows = [
+              phoneValue
+                ? { icon: <Phone className="h-3.5 w-3.5" />, label: 'Phone', value: phoneValue, kind: 'text' as const }
+                : { icon: <Phone className="h-3.5 w-3.5" />, label: 'Phone', value: null as string | null, kind: 'hidden-phone' as const },
+              gender
+                ? { icon: <UserIcon className="h-3.5 w-3.5" />, label: 'Gender', value: gender, kind: 'text' as const }
+                : { icon: <UserIcon className="h-3.5 w-3.5" />, label: 'Gender', value: null, kind: 'hidden' as const },
+              dob
+                ? { icon: <Calendar className="h-3.5 w-3.5" />, label: 'Date of Birth', value: fmtDate(dob), kind: 'text' as const }
+                : { icon: <Calendar className="h-3.5 w-3.5" />, label: 'Date of Birth', value: null, kind: 'hidden' as const },
+              country || district
+                ? {
+                    icon: <MapPin className="h-3.5 w-3.5" />,
+                    label: 'Location',
+                    value: [district, division, country].filter(Boolean).join(', '),
+                    kind: 'text' as const,
+                  }
+                : { icon: <MapPin className="h-3.5 w-3.5" />, label: 'Location', value: null, kind: 'hidden' as const },
+              org
+                ? { icon: <Building2 className="h-3.5 w-3.5" />, label: 'Current Organization', value: org, kind: 'text' as const }
+                : { icon: <Building2 className="h-3.5 w-3.5" />, label: 'Current Organization', value: null, kind: 'hidden' as const },
+              totalExp != null
+                ? {
+                    icon: <Briefcase className="h-3.5 w-3.5" />,
+                    label: 'Total Experience',
+                    value: `${totalExp} year${Number(totalExp) === 1 ? '' : 's'}`,
+                    kind: 'text' as const,
+                  }
+                : expYears != null
+                ? {
+                    icon: <Briefcase className="h-3.5 w-3.5" />,
+                    label: 'Total Experience',
+                    value: `${expYears} year${Number(expYears) === 1 ? '' : 's'}`,
+                    kind: 'text' as const,
+                  }
+                : { icon: <Briefcase className="h-3.5 w-3.5" />, label: 'Total Experience', value: null, kind: 'hidden' as const },
+              email
+                ? {
+                    icon: <Mail className="h-3.5 w-3.5" />,
+                    label: 'Email',
+                    value: email,
+                    kind: 'email' as const,
+                  }
+                : { icon: <Mail className="h-3.5 w-3.5" />, label: 'Email', value: null, kind: 'hidden' as const },
+              address
+                ? {
+                    icon: <MapPin className="h-3.5 w-3.5" />,
+                    label: 'Address',
+                    value: address,
+                    kind: 'text' as const,
+                  }
+                : { icon: <MapPin className="h-3.5 w-3.5" />, label: 'Address', value: null, kind: 'hidden' as const },
+            ];
+
+            const visibleRows = rows.filter((r) => r.kind !== 'hidden' && r.value);
+            const privateRows = rows.filter((r) => r.kind === 'hidden' || (r.kind === 'hidden-phone' && !r.value));
+
+            if (visibleRows.length === 0) {
+              return <EmptyNote message="No personal information has been added yet — the candidate has not shared these details publicly." />;
+            }
+
+            return (
+              <>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {visibleRows.map((r, idx) => (
+                    <PersonalInfoRow
+                      key={`${r.label}-${idx}`}
+                      icon={r.icon}
+                      label={r.label}
+                      value={r.value as string}
+                      href={r.kind === 'email' ? `mailto:${r.value}` : undefined}
+                    />
+                  ))}
+                </div>
+                {privateRows.length > 0 ? (
+                  <p className="mt-3 inline-flex items-center gap-1 text-[10px] italic text-slate-400">
+                    <Shield className="h-3 w-3" />
+                    {privateRows.length} field{privateRows.length === 1 ? '' : 's'} hidden by the candidate
+                  </p>
+                ) : null}
+              </>
+            );
+          })()}
+        </Section>
+
+        {/* ---------- 5. Career Information (always renders) ---------- */}
+        <Section
+          title="Career Information"
+          icon={<Briefcase className="h-4 w-4" />}
+        >
+          {(() => {
+            const ci = payload.career_information ?? null;
+            const headline =
+              ci?.headline ??
+              ci?.current_position ??
+              candidate?.current_position ??
+              candidate?.profession ??
+              null;
+            const profession =
+              ci?.profession ?? candidate?.profession ?? null;
+            const currentOrg =
+              ci?.current_organization ?? candidate?.current_organization ?? null;
+            const expYears =
+              ci?.experience_years ?? candidate?.experience_years ?? null;
+            const totalExp =
+              ci?.total_experience ?? candidate?.total_experience ?? null;
+            const summary =
+              ci?.experience_summary ??
+              candidate?.experience_summary ??
+              candidate?.bio ??
+              null;
+            const bio = ci?.bio ?? candidate?.bio ?? null;
+
+            const hasAny =
+              headline || profession || currentOrg || expYears != null || totalExp != null || summary || bio;
+            if (!hasAny) {
+              return (
+                <EmptyNote message="No career information has been added yet — profession, current position and bio are blank." />
+              );
+            }
+            return (
+              <div className="space-y-3">
                 {headline ? (
-                  <p className="text-sm font-bold text-slate-900 break-words">
+                  <p className="text-base font-black text-slate-900 break-words">
                     {headline}
                   </p>
                 ) : null}
-                {summary ? (
-                  <p className="text-xs leading-relaxed text-slate-700 break-words">
-                    {summary}
+                {profession && profession !== headline ? (
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    {profession}
+                  </p>
+                ) : null}
+                {currentOrg ? (
+                  <p className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                    <Building2 className="h-3.5 w-3.5 text-slate-400" /> {currentOrg}
+                  </p>
+                ) : null}
+                {(expYears != null || totalExp != null) ? (
+                  <p className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+                    <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                    {totalExp != null
+                      ? `${totalExp} year${Number(totalExp) === 1 ? '' : 's'} total experience`
+                      : expYears != null
+                      ? `${expYears} year${Number(expYears) === 1 ? '' : 's'} experience`
+                      : null}
+                  </p>
+                ) : null}
+                {summary || bio ? (
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-700 break-words">
+                    {summary ?? bio}
                   </p>
                 ) : null}
               </div>
-            </Section>
-          );
-        })()}
+            );
+          })()}
+        </Section>
 
-        {/* ---------- Core Skills (technology tags from profile) ---------- */}
-        {(() => {
-          const techTags: string[] = [];
-          if (Array.isArray(candidate?.skill_tags)) {
-            for (const t of candidate.skill_tags) {
-              if (typeof t === 'string' && t.trim()) techTags.push(t.trim());
-            }
-          }
-          if (Array.isArray(payload.technologies)) {
-            for (const t of payload.technologies) {
-              if (t && typeof t.name === 'string' && t.name.trim()) {
-                techTags.push(t.name.trim());
-              }
-            }
-          }
-          // de-dupe
-          const seen = new Set<string>();
-          const unique: string[] = [];
-          for (const t of techTags) {
-            const key = t.toLowerCase();
-            if (seen.has(key)) continue;
-            seen.add(key);
-            unique.push(t);
-          }
-          if (unique.length === 0) return null;
-          return (
-            <Section
-              title="Core Skills"
-              icon={<Wrench className="h-4 w-4" />}
-              subtitle={`${unique.length} skill${unique.length === 1 ? '' : 's'}`}
-            >
-              <div className="flex flex-wrap gap-1.5">
-                {unique.map((t, idx) => (
-                  <span
-                    key={`${t}-${idx}`}
-                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700"
-                  >
-                    <Code2 className="mr-1 h-3 w-3" />
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </Section>
-          );
-        })()}
-
-        {/* ---------- Contact ---------- */}
-        {(() => {
-          const hasContactLinks =
-            Boolean(candidate?.website_url) ||
-            Boolean(candidate?.linkedin_url) ||
-            Boolean(candidate?.github_url) ||
-            Boolean(candidate?.portfolio_url) ||
-            Boolean(phone);
-          if (!hasContactLinks) return null;
-          return (
-            <Section title="Contact" icon={<Mail className="h-4 w-4" />}>
-              <div className="flex flex-wrap gap-2">
-                {phone ? (
-                  <ContactPill
-                    icon={<Phone className="h-3.5 w-3.5" />}
-                    label="Phone"
-                    value={phone}
-                    href={`tel:${phone}`}
-                  />
-                ) : null}
-                {candidate?.website_url ? (
-                  <ContactPill
-                    icon={<Globe className="h-3.5 w-3.5" />}
-                    label="Website"
-                    value={candidate.website_url}
-                    href={candidate.website_url}
-                  />
-                ) : null}
-                {candidate?.linkedin_url ? (
-                  <ContactPill
-                    icon={<Linkedin className="h-3.5 w-3.5" />}
-                    label="LinkedIn"
-                    value={candidate.linkedin_url}
-                    href={candidate.linkedin_url}
-                  />
-                ) : null}
-                {candidate?.github_url ? (
-                  <ContactPill
-                    icon={<Code2 className="h-3.5 w-3.5" />}
-                    label="GitHub"
-                    value={candidate.github_url}
-                    href={candidate.github_url}
-                  />
-                ) : null}
-                {candidate?.portfolio_url ? (
-                  <ContactPill
-                    icon={<ExternalLink className="h-3.5 w-3.5" />}
-                    label="Portfolio"
-                    value={candidate.portfolio_url}
-                    href={candidate.portfolio_url}
-                  />
-                ) : null}
-              </div>
-            </Section>
-          );
-        })()}
-
-        {/* ---------- Personal Information (privacy-gated) ---------- */}
-        {(() => {
-          const gender = candidate?.gender ?? null;
-          const dob = candidate?.date_of_birth ?? null;
-          const address = candidate?.address ?? null;
-          const org = candidate?.current_organization ?? null;
-          const totalExp = candidate?.total_experience ?? null;
-          const expYears = candidate?.experience_years ?? null;
-
-          // Only render this section if at least one privacy-gated field
-          // is actually present (otherwise we'd be hiding nothing).
-          const hasAny =
-            gender || dob || address || org || totalExp != null || expYears != null;
-          if (!hasAny) return null;
-
-          const dobLabel = dob ? fmtDate(dob) : null;
-
-          return (
-            <Section
-              title="Personal Information"
-              icon={<UserIcon className="h-4 w-4" />}
-            >
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {gender ? (
-                  <InfoRow icon={<UserIcon className="h-3.5 w-3.5" />} label="Gender" value={gender} />
-                ) : null}
-                {dobLabel ? (
-                  <InfoRow
-                    icon={<Calendar className="h-3.5 w-3.5" />}
-                    label="Date of Birth"
-                    value={dobLabel}
-                  />
-                ) : null}
-                {org ? (
-                  <InfoRow
-                    icon={<Building2 className="h-3.5 w-3.5" />}
-                    label="Current Organization"
-                    value={org}
-                  />
-                ) : null}
-                {totalExp != null ? (
-                  <InfoRow
-                    icon={<Briefcase className="h-3.5 w-3.5" />}
-                    label="Total Experience"
-                    value={`${totalExp} year${Number(totalExp) === 1 ? '' : 's'}`}
-                  />
-                ) : expYears != null && !org ? (
-                  <InfoRow
-                    icon={<Briefcase className="h-3.5 w-3.5" />}
-                    label="Total Experience"
-                    value={`${expYears} year${Number(expYears) === 1 ? '' : 's'}`}
-                  />
-                ) : null}
-                {address ? (
-                  <InfoRow
-                    icon={<MapPin className="h-3.5 w-3.5" />}
-                    label="Address"
-                    value={address}
-                    full
-                  />
-                ) : null}
-              </div>
-            </Section>
-          );
-        })()}
-
-        {/* ---------- Education ---------- */}
-        {payload.education && payload.education.length > 0 ? (
-          <Section
-            title="Education"
-            icon={<GraduationCap className="h-4 w-4" />}
-            subtitle={`${payload.education.length} qualification${payload.education.length === 1 ? '' : 's'}`}
-          >
+        {/* ---------- 6. Education (always renders) ---------- */}
+        <Section title="Education" icon={<GraduationCap className="h-4 w-4" />}>
+          {payload.education && payload.education.length > 0 ? (
             <ul className="space-y-2">
               {payload.education.map((e, idx) => (
                 <li
@@ -627,16 +599,14 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </li>
               ))}
             </ul>
-          </Section>
-        ) : null}
+          ) : (
+            <EmptyNote message="No education entries added yet — the candidate has not shared their academic history." />
+          )}
+        </Section>
 
-        {/* ---------- Experience ---------- */}
-        {payload.experience && payload.experience.length > 0 ? (
-          <Section
-            title="Experience"
-            icon={<Briefcase className="h-4 w-4" />}
-            subtitle={`${payload.experience.length} role${payload.experience.length === 1 ? '' : 's'}`}
-          >
+        {/* ---------- 7. Experience (always renders) ---------- */}
+        <Section title="Experience" icon={<Briefcase className="h-4 w-4" />}>
+          {payload.experience && payload.experience.length > 0 ? (
             <ul className="space-y-2">
               {payload.experience.map((x, idx) => (
                 <li
@@ -659,23 +629,95 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </li>
               ))}
             </ul>
-          </Section>
-        ) : null}
+          ) : (
+            <EmptyNote message="No work experience added yet — the candidate has not listed any roles." />
+          )}
+        </Section>
 
-        {/* ---------- Languages ---------- */}
-        {(() => {
-          const langs = Array.isArray(candidate?.languages)
-            ? (candidate!.languages as unknown[]).filter(
-                (l): l is string => typeof l === 'string' && l.trim() !== '',
-              )
-            : [];
-          if (langs.length === 0) return null;
-          return (
-            <Section
-              title="Languages"
-              icon={<Globe className="h-4 w-4" />}
-              subtitle={`${langs.length} language${langs.length === 1 ? '' : 's'}`}
-            >
+        {/* ---------- 8. Skills / Core Skills ---------- */}
+        <Section title="Skills" icon={<Wrench className="h-4 w-4" />}>
+          {(() => {
+            const techTags: string[] = [];
+            const techTagUrls = new Map<string, string>();
+            if (Array.isArray(candidate?.skill_tags)) {
+              for (const t of candidate.skill_tags) {
+                if (typeof t === 'string' && t.trim()) techTags.push(t.trim());
+              }
+            }
+            if (Array.isArray(payload.technologies)) {
+              for (const t of payload.technologies) {
+                if (t && typeof t.name === 'string' && t.name.trim()) {
+                  const nm = t.name.trim();
+                  techTags.push(nm);
+                  const url = (t as any)?.evidence_url;
+                  if (typeof url === 'string' && url.trim()) {
+                    techTagUrls.set(nm.toLowerCase(), url.trim());
+                  }
+                }
+              }
+            }
+            const seen = new Set<string>();
+            const unique: string[] = [];
+            for (const t of techTags) {
+              const key = t.toLowerCase();
+              if (seen.has(key)) continue;
+              seen.add(key);
+              unique.push(t);
+            }
+            if (unique.length === 0) {
+              return (
+                <EmptyNote message="No skills added yet — the candidate has not listed any technical or professional skills." />
+              );
+            }
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                {unique.map((t, idx) => {
+                  const url = techTagUrls.get(t.toLowerCase());
+                  if (url) {
+                    return (
+                      <a
+                        key={`${t}-${idx}`}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-[#E31B23] hover:bg-white"
+                      >
+                        <Code2 className="h-3 w-3" />
+                        {t}
+                        <ExternalLink className="h-3 w-3 opacity-60" />
+                      </a>
+                    );
+                  }
+                  return (
+                    <span
+                      key={`${t}-${idx}`}
+                      className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700"
+                    >
+                      <Code2 className="mr-1 h-3 w-3" />
+                      {t}
+                    </span>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </Section>
+
+        {/* ---------- 9. Languages (always renders) ---------- */}
+        <Section title="Languages" icon={<Globe className="h-4 w-4" />}>
+          {(() => {
+            const ci = payload.career_information ?? null;
+            const fromCi = Array.isArray((ci as any)?.languages)
+              ? ((ci as any).languages as unknown[]).filter((l): l is string => typeof l === 'string' && l.trim() !== '')
+              : [];
+            const fromCandidate = Array.isArray(candidate?.languages)
+              ? (candidate!.languages as unknown[]).filter((l): l is string => typeof l === 'string' && l.trim() !== '')
+              : [];
+            const langs = Array.from(new Set([...fromCi, ...fromCandidate]));
+            if (langs.length === 0) {
+              return <EmptyNote message="No languages added yet — the candidate has not shared any spoken languages." />;
+            }
+            return (
               <div className="flex flex-wrap gap-1.5">
                 {langs.map((l, idx) => (
                   <span
@@ -686,231 +728,13 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                   </span>
                 ))}
               </div>
-            </Section>
-          );
-        })()}
+            );
+          })()}
+        </Section>
 
-        {/* ---------- Portfolio & Social Links ---------- */}
-        {(() => {
-          type Link = { url: string; label: string; icon: ReactNode };
-          const links: Link[] = [];
-          if (candidate?.linkedin_url) {
-            links.push({
-              url: candidate.linkedin_url,
-              label: 'LinkedIn',
-              icon: <Linkedin className="h-3.5 w-3.5" />,
-            });
-          }
-          if (candidate?.github_url) {
-            links.push({
-              url: candidate.github_url,
-              label: 'GitHub',
-              icon: <Code2 className="h-3.5 w-3.5" />,
-            });
-          }
-          if (candidate?.portfolio_url) {
-            links.push({
-              url: candidate.portfolio_url,
-              label: 'Portfolio',
-              icon: <ExternalLink className="h-3.5 w-3.5" />,
-            });
-          }
-          if (candidate?.website_url) {
-            links.push({
-              url: candidate.website_url,
-              label: 'Website',
-              icon: <Globe className="h-3.5 w-3.5" />,
-            });
-          }
-          if (links.length === 0) return null;
-          return (
-            <Section
-              title="Portfolio & Social Links"
-              icon={<LinkIcon className="h-4 w-4" />}
-              subtitle={`${links.length} link${links.length === 1 ? '' : 's'}`}
-            >
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {links.map((l, idx) => (
-                  <a
-                    key={`${l.label}-${idx}`}
-                    href={l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 hover:border-[#E31B23] hover:bg-red-50/40"
-                  >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                      {l.icon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-slate-900">{l.label}</p>
-                      <p className="truncate text-[10px] font-mono text-slate-500">
-                        {l.url}
-                      </p>
-                    </div>
-                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  </a>
-                ))}
-              </div>
-            </Section>
-          );
-        })()}
-
-        {/* ---------- Verified Categories (one passport, many categories) ---------- */}
-        {payload.verified_categories && payload.verified_categories.length > 0 ? (
-          <Section
-            title="Verified Categories"
-            icon={<Layers className="h-4 w-4" />}
-            subtitle={`${payload.verified_categories.length} verified category${payload.verified_categories.length === 1 ? '' : 'ies'} · ${
-              payload.verified_skills?.length ?? 0
-            } skill${(payload.verified_skills?.length ?? 0) === 1 ? '' : 's'} passed`}
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              {payload.verified_categories.map((cat, cIdx) => {
-                const avg = cat.average_score != null ? Number(cat.average_score).toFixed(1) : null;
-                const lastDate = cat.latest_verified_at ? fmtDate(cat.latest_verified_at) : null;
-                return (
-                  <article
-                    key={`${cat.category}-${cIdx}`}
-                    className="flex h-full flex-col rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/60 via-white to-amber-50/40 p-4 shadow-sm"
-                  >
-                    <header className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="flex items-center gap-1.5 text-base font-black text-slate-900 break-words">
-                          <Layers className="h-4 w-4 shrink-0 text-emerald-600" />
-                          {cat.category || 'Other'}
-                        </h3>
-                        <p className="mt-0.5 text-[11px] text-slate-500">
-                          {cat.skill_count} verified skill{cat.skill_count === 1 ? '' : 's'}
-                          {cat.completed_roadmaps > 0
-                            ? ` · ${cat.completed_roadmaps} completed roadmap${cat.completed_roadmaps === 1 ? '' : 's'}`
-                            : ''}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 text-right">
-                        {avg != null ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 font-mono text-[11px] font-bold text-emerald-800">
-                            <TrendingUp className="h-3 w-3" /> Avg {avg} / 10
-                          </span>
-                        ) : null}
-                        {lastDate ? (
-                          <span className="text-[10px] text-slate-500">{lastDate}</span>
-                        ) : null}
-                      </div>
-                    </header>
-
-                    {cat.skills && cat.skills.length > 0 ? (
-                      <ul className="mt-3 space-y-1.5">
-                        {cat.skills.map((s, sIdx) => (
-                          <li
-                            key={`${cat.category}-skill-${sIdx}-${s.skill_name ?? 's'}`}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-white px-2.5 py-2"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-900 break-words">
-                                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                                {s.skill_name || s.task_title || 'Verified Skill'}
-                              </p>
-                              {s.sub_category ? (
-                                <p className="ml-5 text-[10px] text-slate-500">{s.sub_category}</p>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center gap-2 text-[11px]">
-                              {s.score != null ? (
-                                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono font-bold text-slate-700">
-                                  {Number(s.score).toFixed(1)}
-                                </span>
-                              ) : null}
-                              {s.skill_level ? (
-                                <span className="rounded bg-amber-100 px-1.5 py-0.5 font-bold uppercase text-amber-800">
-                                  {s.skill_level}
-                                </span>
-                              ) : null}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
-          </Section>
-        ) : null}
-
-        {/* ---------- Skill Passports (multi-category) ---------- */}
-        {payload.passports && payload.passports.length > 0 ? (
-          <Section
-            title="Skill Passports"
-            icon={<ShieldCheck className="h-4 w-4" />}
-            subtitle={`${payload.passports.length} category passport${payload.passports.length === 1 ? '' : 's'} issued by SkillProof`}
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              {payload.passports.map((pp, ppIdx) => (
-                <MultiPassportCard
-                  key={`${pp.passport_number}-${ppIdx}`}
-                  item={pp}
-                  isPrimary={pp.passport_number === passportNumber}
-                />
-              ))}
-            </div>
-          </Section>
-        ) : null}
-
-        {/* ---------- Verified Skills ---------- */}
-        {payload.verified_skills && payload.verified_skills.length > 0 ? (
-          <Section
-            title="Verified Skills"
-            icon={<Award className="h-4 w-4" />}
-            subtitle={`${payload.verified_skills.length} passed SkillProof verification${payload.verified_skills.length === 1 ? '' : 's'}`}
-          >
-            <ul className="space-y-2">
-              {payload.verified_skills.map((s, idx) => (
-                <li
-                  key={`${s.skill_name ?? 'skill'}-${idx}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-slate-900 break-words">
-                        {s.skill_name || 'Verified Skill'}
-                      </p>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-                        <BadgeCheck className="h-3 w-3" /> Verified
-                      </span>
-                      {s.skill_level ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                          <TrendingUp className="h-3 w-3" /> {s.skill_level}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-500 break-words">
-                      {s.category ?? ''}
-                      {s.sub_category ? ` · ${s.sub_category}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="rounded-md bg-slate-100 px-2 py-1 font-mono font-bold text-slate-700">
-                      {s.score != null ? `${Number(s.score).toFixed(1)} / 10` : ''}
-                    </span>
-                    {s.verified_at ? (
-                      <span className="text-[10px] text-slate-500">
-                        {fmtDate(s.verified_at)}
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        ) : null}
-
-        {/* ---------- Certificates ---------- */}
-        {payload.certificates && payload.certificates.length > 0 ? (
-          <Section
-            title="Certificates"
-            icon={<ShieldCheck className="h-4 w-4" />}
-            subtitle={`${payload.certificates.length} verified certificate${payload.certificates.length === 1 ? '' : 's'}`}
-          >
+        {/* ---------- 10. Certifications (always renders) ---------- */}
+        <Section title="Certifications" icon={<BookOpen className="h-4 w-4" />}>
+          {payload.certificates && payload.certificates.length > 0 ? (
             <ul className="space-y-2">
               {payload.certificates.map((c, idx) => (
                 <li
@@ -959,73 +783,378 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </li>
               ))}
             </ul>
-          </Section>
-        ) : null}
+          ) : (
+            <EmptyNote message="No certifications added yet — the candidate has not completed any SkillProof roadmap certifications." />
+          )}
+        </Section>
 
-        {/* ---------- Projects ---------- */}
-        {payload.projects && payload.projects.length > 0 ? (
-          <Section
-            title="Projects"
-            icon={<Rocket className="h-4 w-4" />}
-            subtitle={`${payload.projects.length} public project${payload.projects.length === 1 ? '' : 's'}`}
-          >
-            <ul className="space-y-2">
-              {payload.projects.map((p, idx) => (
-                <li
-                  key={`${p.name ?? 'project'}-${idx}`}
-                  className="rounded-xl border border-slate-200 bg-white p-3"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+        {/* ---------- 11. Portfolio & Social Links ---------- */}
+        <Section title="Portfolio & Social Links" icon={<LinkIcon className="h-4 w-4" />}>
+          {(() => {
+            const links: Array<{ url: string; label: string; icon: ReactNode }> = [];
+            if (candidate?.linkedin_url) {
+              links.push({ url: candidate.linkedin_url, label: 'LinkedIn', icon: <Linkedin className="h-3.5 w-3.5" /> });
+            }
+            if (candidate?.github_url) {
+              links.push({ url: candidate.github_url, label: 'GitHub', icon: <Code2 className="h-3.5 w-3.5" /> });
+            }
+            if (candidate?.portfolio_url) {
+              links.push({ url: candidate.portfolio_url, label: 'Portfolio', icon: <ExternalLink className="h-3.5 w-3.5" /> });
+            }
+            if (candidate?.website_url) {
+              links.push({ url: candidate.website_url, label: 'Website', icon: <Globe className="h-3.5 w-3.5" /> });
+            }
+            if (links.length === 0) {
+              return <EmptyNote message="No portfolio or social links added yet — GitHub, LinkedIn, Portfolio and Website are all blank." />;
+            }
+            return (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {links.map((l, idx) => (
+                  <a
+                    key={`${l.label}-${idx}`}
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 hover:border-[#E31B23] hover:bg-red-50/40"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                      {l.icon}
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-slate-900 break-words">
-                        {p.name ?? 'Project'}
+                      <p className="text-xs font-bold text-slate-900">{l.label}</p>
+                      <p className="truncate text-[10px] font-mono text-slate-500">
+                        {l.url}
                       </p>
-                      {p.role ? (
-                        <p className="mt-0.5 text-[11px] text-slate-500 break-words">
-                          Role: {p.role}
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  </a>
+                ))}
+              </div>
+            );
+          })()}
+        </Section>
+
+        {/* ─── divider: VERIFICATION & CREDENTIALS ─── */}
+        <div className="relative border-y-2 border-dashed border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-3 sm:px-8">
+          <p className="text-center text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">
+            — Verification &amp; Credentials —
+          </p>
+        </div>
+
+        {/* ---------- 12. Verification Category ---------- */}
+        <Section title="Verification Category" icon={<Award className="h-4 w-4" />}>
+          <VerificationCategoryCard
+            category={verificationCategory}
+            label={verificationCategoryLabel}
+            passedCount={payload.passed_count ?? 0}
+            avgScore={payload.average_marks != null ? Number(payload.average_marks) : null}
+            overallScore={overallScore != null ? Number(overallScore) : null}
+            verifiedSkillsCount={payload.verified_skills?.length ?? 0}
+          />
+        </Section>
+
+        {/* ---------- 13. Verified Categories ---------- */}
+        <Section
+          title="Verified Categories"
+          icon={<Layers className="h-4 w-4" />}
+          subtitle={
+            payload.verified_categories && payload.verified_categories.length > 0
+              ? `${payload.verified_categories.length} category${payload.verified_categories.length === 1 ? '' : 'ies'} · ${payload.verified_skills?.length ?? 0} skill${(payload.verified_skills?.length ?? 0) === 1 ? '' : 's'} passed`
+              : undefined
+          }
+        >
+          {payload.verified_categories && payload.verified_categories.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {payload.verified_categories.map((cat, cIdx) => {
+                const avg = cat.average_score != null ? Number(cat.average_score).toFixed(1) : null;
+                const lastDate = cat.latest_verified_at ? fmtDate(cat.latest_verified_at) : null;
+                return (
+                  <article
+                    key={`${cat.category}-${cIdx}`}
+                    className="flex h-full flex-col rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/60 via-white to-amber-50/40 p-4 shadow-sm"
+                  >
+                    <header className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="flex items-center gap-1.5 text-base font-black text-slate-900 break-words">
+                          <Layers className="h-4 w-4 shrink-0 text-emerald-600" />
+                          {cat.category || 'Other'}
+                        </h3>
+                        <p className="mt-0.5 text-[11px] text-slate-500">
+                          {cat.skill_count} verified skill{cat.skill_count === 1 ? '' : 's'}
                         </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 text-right">
+                        {avg != null ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 font-mono text-[11px] font-bold text-emerald-800">
+                            <TrendingUp className="h-3 w-3" /> Avg {avg} / 10
+                          </span>
+                        ) : null}
+                        {lastDate ? (
+                          <span className="text-[10px] text-slate-500">{lastDate}</span>
+                        ) : null}
+                      </div>
+                    </header>
+
+                    {cat.skills && cat.skills.length > 0 ? (
+                      <ul className="mt-3 space-y-1.5">
+                        {cat.skills.map((s, sIdx) => (
+                          <li
+                            key={`${cat.category}-skill-${sIdx}-${s.skill_name ?? 's'}`}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-white px-2.5 py-2"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-900 break-words">
+                                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                {s.skill_name || s.task_title || 'Verified Skill'}
+                              </p>
+                              {s.sub_category ? (
+                                <p className="ml-5 text-[10px] text-slate-500">{s.sub_category}</p>
+                              ) : null}
+                            </div>
+                            {s.score != null ? (
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono font-bold text-slate-700">
+                                {Number(s.score).toFixed(1)}
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyNote message="No verified categories yet — the candidate has not passed any SkillProof assessment." />
+          )}
+        </Section>
+
+        {/* ---------- 14. Assessment History — every task + marks ---------- */}
+        <Section
+          title="Assessment History"
+          icon={<FileText className="h-4 w-4" />}
+          subtitle={
+            payload.assessment_history && payload.assessment_history.length > 0
+              ? `${payload.assessment_history.length} submission${payload.assessment_history.length === 1 ? '' : 's'} on file`
+              : undefined
+          }
+        >
+          {payload.assessment_history && payload.assessment_history.length > 0 ? (
+            <ul className="space-y-2">
+              {payload.assessment_history.map((s, idx) => {
+                const status = String(s.status ?? '').toLowerCase();
+                const isPassed = status === 'passed';
+                const isFailed = status === 'failed';
+                const isPending = status === 'pending review' || status === 'pending' || status === 'submitted' || status === 'under review';
+                const tone = isPassed
+                  ? 'border-emerald-200 bg-emerald-50/40'
+                  : isFailed
+                  ? 'border-rose-200 bg-rose-50/30'
+                  : isPending
+                  ? 'border-amber-200 bg-amber-50/30'
+                  : 'border-slate-200 bg-white';
+                const score = s.score != null ? Number(s.score) : null;
+                const max = s.task_max_marks != null ? Number(s.task_max_marks) : null;
+                const marksDisplay =
+                  score != null ? (max != null ? `${score.toFixed(1)} / ${max}` : `${score.toFixed(1)} / 10`) : '—';
+                return (
+                  <li
+                    key={`${s.id ?? 'ah'}-${idx}`}
+                    className={`flex flex-wrap items-start justify-between gap-2 rounded-xl border px-3 py-2.5 ${tone}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold text-slate-900 break-words">
+                          {s.task_title || s.skill_name || 'Assessment'}
+                        </p>
+                        <span
+                          className={
+                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ' +
+                            (isPassed
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : isFailed
+                              ? 'bg-rose-100 text-rose-800'
+                              : isPending
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-700')
+                          }
+                        >
+                          {isPassed ? <BadgeCheck className="h-3 w-3" /> : isFailed ? <XCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                          {s.status}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500 break-words">
+                        {s.category_name ?? ''}
+                        {s.sub_category_name ? ` · ${s.sub_category_name}` : ''}
+                        {s.skill_name && s.skill_name !== s.task_title ? ` · ${s.skill_name}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1 text-xs">
+                      <span className="rounded-md bg-slate-900 px-2.5 py-1 font-mono text-sm font-black text-white">
+                        {marksDisplay}
+                      </span>
+                      {s.event_at ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {fmtDate(s.event_at)}
+                        </span>
                       ) : null}
                     </div>
-                    {p.url ? (
-                      <a
-                        href={p.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#E31B23] hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View
-                      </a>
-                    ) : null}
-                  </div>
-                  {p.description ? (
-                    <p className="mt-2 text-xs leading-relaxed text-slate-600">{p.description}</p>
-                  ) : null}
-                  {Array.isArray(p.technologies) && p.technologies.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {p.technologies.map((t: unknown, tIdx: number) => (
-                        <span
-                          key={`${String(t)}-${tIdx}`}
-                          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700"
-                        >
-                          <Wrench className="mr-1 h-3 w-3" />
-                          {String(t)}
-                        </span>
-                      ))}
-                    </div>
-                  ) : p.tech_stack ? (
-                    <p className="mt-2 text-[11px] text-slate-500">
-                      <Wrench className="inline h-3 w-3 mr-1" /> {p.tech_stack}
-                    </p>
-                  ) : null}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
-          </Section>
-        ) : null}
+          ) : (
+            <EmptyNote message="No assessment submissions yet — the candidate has not attempted any SkillProof assessments." />
+          )}
+        </Section>
 
-        {/* ---------- Career Roadmap ---------- */}
-        {roadmapItems.length > 0 || completedRoadmapCount > 0 ? (
+        {/* ---------- 15. Verified Skills (Passed only, with task title) ---------- */}
+        <Section
+          title="Verified Skills"
+          icon={<BadgeCheck className="h-4 w-4" />}
+          subtitle={
+            payload.verified_skills && payload.verified_skills.length > 0
+              ? `${payload.verified_skills.length} passed SkillProof verification${payload.verified_skills.length === 1 ? '' : 's'}`
+              : undefined
+          }
+        >
+          {payload.verified_skills && payload.verified_skills.length > 0 ? (
+            <ul className="space-y-2">
+              {payload.verified_skills.map((s, idx) => {
+                const taskTitle = s.task_title ?? '';
+                const skillName = s.skill_name ?? 'Verified Skill';
+                const assessmentName = taskTitle && taskTitle.toLowerCase() !== skillName.toLowerCase()
+                  ? taskTitle
+                  : '';
+                return (
+                  <li
+                    key={`${s.skill_name ?? 'skill'}-${idx}`}
+                    className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold text-slate-900 break-words">
+                          {skillName}
+                        </p>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                          <BadgeCheck className="h-3 w-3" /> Verified
+                        </span>
+                        {s.skill_level ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                            <TrendingUp className="h-3 w-3" /> {s.skill_level}
+                          </span>
+                        ) : null}
+                      </div>
+                      {assessmentName && (
+                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 break-words">
+                          <FileText className="h-3 w-3 text-slate-400" />
+                          <span className="text-slate-500">Assessment:</span> {assessmentName}
+                        </p>
+                      )}
+                      <p className="mt-0.5 text-[11px] text-slate-500 break-words">
+                        {s.category ?? ''}
+                        {s.sub_category ? ` · ${s.sub_category}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1 text-xs">
+                      <span className="rounded-md bg-slate-900 px-2.5 py-1 font-mono text-sm font-black text-white">
+                        {s.score != null ? `${Number(s.score).toFixed(1)} / 10` : '—'}
+                      </span>
+                      {s.verified_at ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {fmtDate(s.verified_at)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <EmptyNote message="No verified skills yet — the candidate has not yet passed a SkillProof assessment." />
+          )}
+        </Section>
+
+        {/* ---------- 16. Assessment Summary ---------- */}
+        <Section
+          title="Assessment Summary"
+          icon={<Target className="h-4 w-4" />}
+        >
+          {(() => {
+            const a = payload.assessment_summary;
+            if (!a || (a.total_assessments == null && a.total_attempts == null)) {
+              return <EmptyNote message="Assessment summary is not available — the candidate has no assessment data on file." />;
+            }
+            const total = a.total_assessments ?? a.total_attempts ?? 0;
+            const passed = a.passed ?? 0;
+            const failed = a.failed ?? 0;
+            const avg = a.average_score != null ? Number(a.average_score) : null;
+            const strongest = a.strongest_skill ?? a.strength_areas?.[0] ?? null;
+            const improvement = a.improvement_skill ?? a.improvement_areas?.[0] ?? null;
+            return (
+              <>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <Kpi label="Total Assessments" value={String(total)} />
+                  <Kpi label="Passed" value={String(passed)} tone="emerald" />
+                  <Kpi label="Failed" value={String(failed)} tone={failed > 0 ? 'rose' : 'default'} />
+                  <Kpi
+                    label="Average Score / 10"
+                    value={avg != null ? avg.toFixed(1) : ''}
+                    tone={avg != null && avg >= 7 ? 'emerald' : 'default'}
+                  />
+                </div>
+                {(strongest || improvement) && (
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {strongest && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+                        <p className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                          <BadgeCheck className="h-3 w-3" /> Strongest Skill
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-slate-900 break-words">{strongest}</p>
+                      </div>
+                    )}
+                    {improvement && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+                        <p className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                          <Lightbulb className="h-3 w-3" /> Needs Improvement
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-slate-900 break-words">{improvement}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </Section>
+
+        {/* ---------- 17. Skill Passports (multi-passport cards) ---------- */}
+        <Section
+          title="Skill Passports"
+          icon={<ShieldCheck className="h-4 w-4" />}
+          subtitle={
+            payload.passports && payload.passports.length > 0
+              ? `${payload.passports.length} category passport${payload.passports.length === 1 ? '' : 's'} issued by SkillProof`
+              : undefined
+          }
+        >
+          {payload.passports && payload.passports.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {payload.passports.map((pp, ppIdx) => (
+                <MultiPassportCard
+                  key={`${pp.passport_number}-${ppIdx}`}
+                  item={pp}
+                  isPrimary={pp.is_primary === true || pp.passport_number === passportNumber}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyNote message="No SkillProof Passport has been issued yet — the candidate is currently building their verified profile." />
+          )}
+        </Section>
+
+        {/* ---------- 18. Career Roadmap ---------- */}
+        {(roadmapItems.length > 0 || completedRoadmapCount > 0) ? (
           <Section
             title="Career Roadmap"
             icon={<Target className="h-4 w-4" />}
@@ -1036,7 +1165,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
             }
           >
             <>
-              {/* Aggregated completed skill list — exactly the "8 / 10 completed" style block. */}
               <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Completed Roadmap
@@ -1132,7 +1260,7 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
           </Section>
         ) : null}
 
-        {/* ---------- AI Career Profile ---------- */}
+        {/* ---------- 19. AI Career Profile ---------- */}
         {!hideAi && payload.ai_career_profile ? (
           <Section
             title="AI Career Profile"
@@ -1212,7 +1340,7 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
           </Section>
         ) : null}
 
-        {/* ---------- Career Intelligence (full dashboard-grade) ---------- */}
+        {/* ---------- 20. Career Intelligence (gated) ---------- */}
         {!hideAi && payload.career_intelligence ? (
           <Section
             title="Career Intelligence"
@@ -1234,7 +1362,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
             })()}
           >
             <div className="space-y-3">
-              {/* Hero KPIs */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <Kpi
                   label="Overall / 100"
@@ -1264,7 +1391,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 />
               </div>
 
-              {/* Career summary */}
               {payload.career_intelligence.career_summary ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
@@ -1276,7 +1402,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </div>
               ) : null}
 
-              {/* Top strengths */}
               {payload.career_intelligence.top_strengths?.length > 0 ? (
                 <div>
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -1307,7 +1432,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </div>
               ) : null}
 
-              {/* Skill gaps */}
               {payload.career_intelligence.skill_gaps?.length > 0 ? (
                 <div>
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -1350,7 +1474,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </div>
               ) : null}
 
-              {/* Career matches */}
               {payload.career_intelligence.career_matches?.length > 0 ? (
                 <div>
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -1392,7 +1515,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </div>
               ) : null}
 
-              {/* Market readiness */}
               {payload.career_intelligence.market_readiness ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1411,7 +1533,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </div>
               ) : null}
 
-              {/* 30/60/90 day plan */}
               {payload.career_intelligence.improvement_plan ? (
                 <div>
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -1449,7 +1570,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </div>
               ) : null}
 
-              {/* AI summary */}
               {payload.career_intelligence.ai_summary ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -1461,7 +1581,6 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
                 </div>
               ) : null}
 
-              {/* Baseline meta */}
               {payload.career_intelligence_meta?.baseline ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <Kpi
@@ -1486,106 +1605,122 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
           </Section>
         ) : null}
 
-        {/* ---------- Public Evidence ---------- */}
-        {!hideEvidence && payload.public_evidence && payload.public_evidence.length > 0 ? (
+        {/* ---------- 21. Public Evidence ---------- */}
+        {!hideEvidence ? (
           <Section
             title="Public Evidence"
             icon={<LinkIcon className="h-4 w-4" />}
-            subtitle={`${payload.public_evidence.length} public link${payload.public_evidence.length === 1 ? '' : 's'}`}
+            subtitle={
+              payload.public_evidence && payload.public_evidence.length > 0
+                ? `${payload.public_evidence.length} public link${payload.public_evidence.length === 1 ? '' : 's'}`
+                : undefined
+            }
           >
-            <ul className="space-y-2">
-              {payload.public_evidence.map((e, idx) => (
-                <li
-                  key={`${e.url ?? 'ev'}-${idx}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-slate-900 break-words">
-                      {e.title || e.type || 'Public link'}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-slate-500 break-words">
-                      {e.type ? `${e.type} · ` : ''}
-                      {e.added_at ? `Added ${fmtDate(e.added_at)}` : ''}
-                    </p>
-                  </div>
-                  {e.url ? (
-                    <a
-                      href={e.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#E31B23] hover:underline"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      View
-                    </a>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+            {payload.public_evidence && payload.public_evidence.length > 0 ? (
+              <ul className="space-y-2">
+                {payload.public_evidence.map((e, idx) => (
+                  <li
+                    key={`${e.url ?? 'ev'}-${idx}`}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-slate-900 break-words">
+                        {e.title || e.type || 'Public link'}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-slate-500 break-words">
+                        {e.type ? `${e.type} · ` : ''}
+                        {e.added_at ? `Added ${fmtDate(e.added_at)}` : ''}
+                      </p>
+                    </div>
+                    {e.url ? (
+                      <a
+                        href={e.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#E31B23] hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View
+                      </a>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyNote message="No public evidence added yet — GitHub repos, portfolio links and live demos are blank." />
+            )}
           </Section>
         ) : null}
 
-        {/* ---------- Career Activity Timeline ---------- */}
-        {!hideTimeline && payload.activity_timeline && payload.activity_timeline.length > 0 ? (
+        {/* ---------- 22. Career Activity Timeline ---------- */}
+        {!hideTimeline ? (
           <Section
             title="Career Activity Timeline"
             icon={<Activity className="h-4 w-4" />}
-            subtitle={`${payload.activity_timeline.length} public event${payload.activity_timeline.length === 1 ? '' : 's'}`}
+            subtitle={
+              payload.activity_timeline && payload.activity_timeline.length > 0
+                ? `${payload.activity_timeline.length} public event${payload.activity_timeline.length === 1 ? '' : 's'}`
+                : undefined
+            }
           >
-            <ol className="space-y-2">
-              {payload.activity_timeline.map((t, idx) => (
-                <li
-                  key={`${t.id ?? 'tl'}-${idx}`}
-                  className="flex flex-wrap items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                    <FileText className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-slate-900 break-words">
-                      {t.title || t.result_label || 'Career event'}
-                    </p>
-                    {t.description ? (
-                      <p className="mt-0.5 text-[11px] text-slate-500 break-words">
-                        {t.description}
-                      </p>
-                    ) : null}
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-                      {t.category_label ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
-                          {t.category_label}
-                        </span>
-                      ) : null}
-                      {t.skill_label ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
-                          {t.skill_label}
-                        </span>
-                      ) : null}
-                      {t.result_label ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800">
-                          {t.result_label}
-                        </span>
-                      ) : null}
-                      {t.event_at ? (
-                        <span>
-                          <Calendar className="inline h-3 w-3 mr-1" />
-                          {fmtDate(t.event_at)}
-                        </span>
-                      ) : null}
-                      {t.score != null ? (
-                        <span className="font-mono text-slate-700">
-                          {Number(t.score).toFixed(1)} / 10
-                        </span>
-                      ) : null}
+            {payload.activity_timeline && payload.activity_timeline.length > 0 ? (
+              <ol className="space-y-2">
+                {payload.activity_timeline.map((t, idx) => (
+                  <li
+                    key={`${t.id ?? 'tl'}-${idx}`}
+                    className="flex flex-wrap items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                      <FileText className="h-4 w-4" />
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-slate-900 break-words">
+                        {t.title || t.result_label || 'Career event'}
+                      </p>
+                      {t.description ? (
+                        <p className="mt-0.5 text-[11px] text-slate-500 break-words">
+                          {t.description}
+                        </p>
+                      ) : null}
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                        {t.category_label ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+                            {t.category_label}
+                          </span>
+                        ) : null}
+                        {t.skill_label ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+                            {t.skill_label}
+                          </span>
+                        ) : null}
+                        {t.result_label ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800">
+                            {t.result_label}
+                          </span>
+                        ) : null}
+                        {t.event_at ? (
+                          <span>
+                            <Calendar className="inline h-3 w-3 mr-1" />
+                            {fmtDate(t.event_at)}
+                          </span>
+                        ) : null}
+                        {t.score != null ? (
+                          <span className="font-mono text-slate-700">
+                            {Number(t.score).toFixed(1)} / 10
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyNote message="No public timeline events yet." />
+            )}
           </Section>
         ) : null}
 
-        {/* ---------- Verification info ---------- */}
+        {/* ---------- 23. Verification info ---------- */}
         <Section title="Verification" icon={<ShieldCheck className="h-4 w-4" />}>
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap items-center gap-2">
@@ -1652,13 +1787,159 @@ export function VerifiedCvProfile({ payload, showAdminActions = false }: Props) 
 
 /* ----------------- helpers ------------------ */
 
+function PersonalInfoRow({
+  icon,
+  label,
+  value,
+  href,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  href?: string;
+}) {
+  const inner = (
+    <div className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        {icon}
+        {label}
+      </span>
+      <span className="text-sm font-semibold text-slate-900 break-words">{value}</span>
+    </div>
+  );
+  if (href) {
+    return (
+      <a href={href} className="block hover:[&>div]:border-[#E31B23]">
+        {inner}
+      </a>
+    );
+  }
+  return inner;
+}
+
+/**
+ * VerificationCategoryCard
+ * -------------------------
+ * Surfaces the Bronze / Silver / Gold / Platinum tier on the public CV
+ * (derived from passed_count + avg score by the verify RPC). Each tier
+ * gets its own colour so a recruiter reads the ranking at a glance.
+ */
+function VerificationCategoryCard({
+  category,
+  label,
+  passedCount,
+  avgScore,
+  overallScore,
+  verifiedSkillsCount,
+}: {
+  category: PublicVerificationCategory;
+  label: string;
+  passedCount: number;
+  avgScore: number | null;
+  overallScore: number | null;
+  verifiedSkillsCount: number;
+}): React.ReactElement {
+  const tierTone: Record<
+    PublicVerificationCategory,
+    { ring: string; bg: string; text: string; chip: string; chipText: string; icon: ReactNode }
+  > = {
+    Unranked: {
+      ring: 'border-slate-300',
+      bg: 'bg-gradient-to-br from-slate-50 via-white to-slate-100',
+      text: 'text-slate-800',
+      chip: 'bg-slate-100',
+      chipText: 'text-slate-700',
+      icon: <Shield className="h-6 w-6 text-slate-500" />,
+    },
+    Bronze: {
+      ring: 'border-amber-300',
+      bg: 'bg-gradient-to-br from-amber-50 via-white to-orange-50',
+      text: 'text-amber-900',
+      chip: 'bg-amber-100',
+      chipText: 'text-amber-800',
+      icon: <ShieldCheck className="h-6 w-6 text-amber-600" />,
+    },
+    Silver: {
+      ring: 'border-slate-400',
+      bg: 'bg-gradient-to-br from-slate-50 via-white to-zinc-100',
+      text: 'text-slate-900',
+      chip: 'bg-slate-200',
+      chipText: 'text-slate-800',
+      icon: <ShieldCheck className="h-6 w-6 text-slate-600" />,
+    },
+    Gold: {
+      ring: 'border-yellow-400',
+      bg: 'bg-gradient-to-br from-yellow-50 via-white to-amber-50',
+      text: 'text-yellow-900',
+      chip: 'bg-yellow-100',
+      chipText: 'text-yellow-800',
+      icon: <Award className="h-6 w-6 text-yellow-600" />,
+    },
+    Platinum: {
+      ring: 'border-indigo-400',
+      bg: 'bg-gradient-to-br from-indigo-50 via-white to-purple-50',
+      text: 'text-indigo-900',
+      chip: 'bg-indigo-100',
+      chipText: 'text-indigo-800',
+      icon: <Star className="h-6 w-6 text-indigo-600" />,
+    },
+  };
+  const tone = tierTone[category];
+
+  return (
+    <div className={`flex flex-col gap-3 rounded-2xl border-2 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between ${tone.ring} ${tone.bg}`}>
+      <div className="flex items-center gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white shadow-inner">
+          {tone.icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            SkillProof Verification Tier
+          </p>
+          <p className={`mt-0.5 text-2xl font-black ${tone.text}`}>
+            {category}
+          </p>
+          <p className={`text-xs ${tone.text} opacity-80`}>
+            {label}
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+        <div className={`rounded-xl border ${tone.ring} ${tone.chip} px-3 py-2 text-center`}>
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Overall</p>
+          <p className={`mt-0.5 text-lg font-black ${tone.chipText}`}>
+            {overallScore != null ? Number(overallScore).toFixed(1) : '—'}
+            <span className="ml-0.5 text-[10px] opacity-70">/10</span>
+          </p>
+        </div>
+        <div className={`rounded-xl border ${tone.ring} ${tone.chip} px-3 py-2 text-center`}>
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Passed</p>
+          <p className={`mt-0.5 text-lg font-black ${tone.chipText}`}>
+            {passedCount}
+          </p>
+        </div>
+        <div className={`rounded-xl border ${tone.ring} ${tone.chip} px-3 py-2 text-center`}>
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Avg</p>
+          <p className={`mt-0.5 text-lg font-black ${tone.chipText}`}>
+            {avgScore != null ? avgScore.toFixed(1) : '—'}
+            <span className="ml-0.5 text-[10px] opacity-70">/10</span>
+          </p>
+        </div>
+        <div className={`rounded-xl border ${tone.ring} ${tone.chip} px-3 py-2 text-center`}>
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Skills</p>
+          <p className={`mt-0.5 text-lg font-black ${tone.chipText}`}>
+            {verifiedSkillsCount}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * A single Skill Passport card, rendered for each (user, category)
  * passport the candidate holds. Used by the "Skill Passports" section
- * on the public CV. Status is colour-coded:
- *   - active          → emerald
- *   - pending_approval→ amber
- *   - archived/suspended/rejected/expired → rose / slate
+ * on the public CV.
  */
 function MultiPassportCard({
   item,
@@ -1732,11 +2013,9 @@ function MultiPassportCard({
         </div>
         <div className="flex flex-col items-end gap-1 text-right">
           {badge}
-          {isPrimary ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#E31B23]">
-              <Sparkles className="h-3 w-3" /> Primary
-            </span>
-          ) : null}
+          {/* "Primary Passport" badge removed: the new /verify surface
+              aggregates every category Passport as an independent
+              credential. No passport is privileged over the others. */}
         </div>
       </header>
 
@@ -1798,6 +2077,103 @@ function MultiPassportCard({
   );
 }
 
+/**
+ * PassportResultBanner
+ * --------------------
+ * A full-width CV-header banner that prominently declares the Passport
+ * verification result so the page reads as a CV with a clear credential
+ * state instead of a generic dashboard.
+ */
+function PassportResultBanner({
+  result,
+  verifiedAt,
+}: {
+  result: string | null | undefined;
+  verifiedAt: string | null;
+}): React.ReactElement | null {
+  const r = String(result ?? '').toLowerCase();
+  let bg = 'bg-slate-100';
+  let border = 'border-slate-200';
+  let text = 'text-slate-800';
+  let icon = <Shield className="h-4 w-4" />;
+  let label = 'SkillProof Profile';
+  let sublabel = '';
+
+  if (r === 'verified' || r === 'active') {
+    bg = 'bg-gradient-to-r from-emerald-50 via-emerald-50/70 to-amber-50/60';
+    border = 'border-emerald-200';
+    text = 'text-emerald-900';
+    icon = <BadgeCheck className="h-5 w-5 text-emerald-600" />;
+    label = 'Verified by SkillProof';
+    sublabel = verifiedAt ? `Issued ${fmtDate(verifiedAt)}` : '';
+  } else if (r === 'pending_approval' || r === 'pending') {
+    bg = 'bg-amber-50';
+    border = 'border-amber-200';
+    text = 'text-amber-900';
+    icon = <Clock className="h-5 w-5 text-amber-600" />;
+    label = 'Pending Review';
+    sublabel = 'Awaiting SkillProof verification';
+  } else if (r === 'expired') {
+    bg = 'bg-amber-50';
+    border = 'border-amber-300';
+    text = 'text-amber-900';
+    icon = <Clock className="h-5 w-5 text-amber-600" />;
+    label = 'Passport Expired';
+    sublabel = 'Renewal required to keep the verified badge';
+  } else if (r === 'suspended') {
+    bg = 'bg-rose-50';
+    border = 'border-rose-200';
+    text = 'text-rose-900';
+    icon = <XCircle className="h-5 w-5 text-rose-600" />;
+    label = 'Suspended';
+    sublabel = 'Verification temporarily paused';
+  } else if (r === 'archived') {
+    bg = 'bg-slate-100';
+    border = 'border-slate-300';
+    text = 'text-slate-700';
+    icon = <Shield className="h-5 w-5 text-slate-500" />;
+    label = 'Archived';
+    sublabel = 'No longer active';
+  } else if (r === 'rejected') {
+    bg = 'bg-rose-50';
+    border = 'border-rose-200';
+    text = 'text-rose-900';
+    icon = <XCircle className="h-5 w-5 text-rose-600" />;
+    label = 'Rejected';
+    sublabel = 'Verification did not pass';
+  } else if (r === 'profile_only') {
+    bg = 'bg-sky-50';
+    border = 'border-sky-200';
+    text = 'text-sky-900';
+    icon = <UserIcon className="h-5 w-5 text-sky-600" />;
+    label = 'Profile Only';
+    sublabel = 'No SkillProof Passport has been issued yet';
+  } else if (r === 'private') {
+    return null;
+  } else if (r === 'not_found') {
+    return null;
+  }
+
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-2 border-b px-6 py-3 sm:px-8 ${bg} ${border}`}
+      data-testid="passport-result-banner"
+    >
+      <div className="flex items-center gap-2">
+        {icon}
+        <div className="min-w-0">
+          <p className={`text-sm font-black uppercase tracking-wider ${text}`}>
+            Passport Result · {label}
+          </p>
+          {sublabel && (
+            <p className={`text-[11px] font-semibold ${text} opacity-80`}>{sublabel}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Section({
   title,
   icon,
@@ -1854,67 +2230,6 @@ function Kpi({
       <p className={`mt-0.5 text-lg font-black ${colour}`}>{value}</p>
     </div>
   );
-}
-
-function InfoRow({
-  icon,
-  label,
-  value,
-  full,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  full?: boolean;
-}) {
-  return (
-    <div
-      className={
-        full
-          ? 'col-span-1 flex flex-col gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2'
-          : 'flex flex-col gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3'
-      }
-    >
-      <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-        {icon}
-        {label}
-      </span>
-      <span className="text-sm font-semibold text-slate-900 break-words">{value}</span>
-    </div>
-  );
-}
-
-function ContactPill({
-  icon,
-  label,
-  value,
-  href,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  href?: string;
-}) {
-  const inner = (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-      {icon}
-      <span className="text-slate-500">{label}:</span>
-      <span className="break-all">{value}</span>
-    </span>
-  );
-  if (href) {
-    return (
-      <a
-        href={href}
-        target={href.startsWith('http') ? '_blank' : undefined}
-        rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
-        className="hover:border-[#E31B23] hover:text-[#E31B23]"
-      >
-        {inner}
-      </a>
-    );
-  }
-  return inner;
 }
 
 function VerifiedBadge({

@@ -63,6 +63,7 @@ export interface CandidateProfileCandidate {
   linkedin_url: string | null;
   website_url: string | null;
   portfolio_url: string | null;
+  email: string | null;
   phone: string | null;
   show_phone_on_verified_profile: boolean;
   hide_ai_on_verified_profile: boolean;

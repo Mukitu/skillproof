@@ -7,6 +7,7 @@ import { Navbar } from '../../components/layout/Navbar';
 import { Footer } from '../../components/layout/Footer';
 import { SkillProofLogo } from '../../components/brand';
 import { SupportContactCard } from '../../components/common/SupportContactCard';
+import { SEOHead } from '../../components/public/SEOHead';
 import type { NormalizedAuthError } from '../../services/authErrors';
 
 export const ForgotPasswordPage: React.FC = () => {
@@ -51,6 +52,13 @@ export const ForgotPasswordPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FFF8F6] text-slate-900 flex flex-col font-sans">
+      <SEOHead
+        pageKey="forgot-password"
+        path="/forgot-password"
+        title="Forgot Password | SkillProof"
+        description="Reset your SkillProof account password."
+        robots="noindex,nofollow"
+      />
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center py-12 px-4">

@@ -14,6 +14,7 @@ import { AppErrorBoundary } from './components/error/AppErrorBoundary';
 
 import { UserLayout } from './components/layout/UserLayout';
 import { AdminLayout } from './components/layout/AdminLayout';
+import { ScrollToTop } from './components/layout/ScrollToTop';
 
 
 import { LandingPage } from './pages/public/LandingPage';
@@ -22,6 +23,8 @@ import { AboutPage } from './pages/public/AboutPage';
 import { EmployerVerificationPortal } from './pages/public/EmployerVerificationPortal';
 import { CompanyJobsPublicPage } from './pages/public/CompanyJobsPublicPage';
 import { CompanyJobDetailPublicPage } from './pages/public/CompanyJobDetailPublicPage';
+import { NotFoundPage } from './pages/public/NotFoundPage';
+import { OwnerPage } from './pages/public/OwnerPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -100,6 +103,8 @@ export function AppRoutes() {
       <Route path="/verify" element={<EmployerVerificationPortal />} />
       <Route path="/company-jobs" element={<CompanyJobsPublicPage />} />
       <Route path="/company-jobs/detail" element={<CompanyJobDetailPublicPage />} />
+      <Route path="/owner" element={<OwnerPage />} />
+      <Route path="/404" element={<NotFoundPage />} />
 
       {}
       <Route path="/passport" element={<PassportRedirect />} />
@@ -206,7 +211,7 @@ export function AppRoutes() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
@@ -215,6 +220,7 @@ export function App() {
   return (
     <AppErrorBoundary label="App">
       <Router>
+        <ScrollToTop />
         <LanguageProvider>
           <AuthProvider>
             <SubscriptionProvider>

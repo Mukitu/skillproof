@@ -1,0 +1,45 @@
+# SkillProof — robots.txt
+# https://skillproof.top/
+
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /how-it-works
+Allow: /verify
+Allow: /owner
+Allow: /company-jobs
+Allow: /company-jobs/detail
+
+# Disallow authenticated / private routes
+Disallow: /dashboard
+Disallow: /dashboard/*
+Disallow: /company
+Disallow: /company/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /subscription
+Disallow: /subscription/*
+Disallow: /passport
+Disallow: /passport/*
+Disallow: /profile
+Disallow: /profile/*
+Disallow: /certificate
+Disallow: /certificate/*
+Disallow: /api/
+Disallow: /skillproof-api/
+Disallow: /tmp/
+Disallow: /apk/
+
+# Block common crawlers from internal assets
+Disallow: /assets/
+Disallow: /*.json$
+
+# Sitemap
+Sitemap: https://skillproof.top/sitemap.xml
+
+# Host (helps search engines pick canonical host)
+Host: https://skillproof.top

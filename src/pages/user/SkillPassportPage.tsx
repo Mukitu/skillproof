@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type Key as ReactKey } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type Key as ReactKey } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  AlertCircle, Award, Check, CheckCircle2, ChevronDown, Clock, Copy, ExternalLink, Flag, Link2, Loader2, Lock, Plus, RefreshCcw, Send, ShieldCheck, Sparkles, X,
+  AlertCircle, Award, CheckCircle2, ChevronDown, Clock, ExternalLink, HelpCircle, Lock, Plus, RefreshCcw, Send, ShieldCheck, Sparkles, X,
 } from 'lucide-react';
 import { PassportCard } from '../../components/passport/PassportCard';
 import { ShareToolbar } from '../../components/passport/ShareToolbar';
 import { CertificateCard } from '../../components/certificate/CertificateCard';
-import { CareerTimeline } from '../../components/passport/CareerTimeline';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import {
@@ -15,14 +14,13 @@ import {
   requestPassportRenewal,
 } from '../../services/passports';
 import { getMyProfile, getMyProfileId, getMyPublicProfileId } from '../../services/profile';
-import { listMyCareerTimeline } from '../../services/careerTimeline';
 import {
   getMyCertificates,
 } from '../../services/courseCertificates';
 import { useRealtimeRefresh } from '../../services/realtime';
 import { getPublicProfileUrl } from '../../utils/passportUrl';
 import type {
-  CareerTimelineEvent, CourseCertificate, PassportCategoryEligibility,
+  CourseCertificate, PassportCategoryEligibility,
   PassportRenewalHistory, Profile, SkillPassport,
 } from '../../types/database';
 
@@ -35,12 +33,12 @@ export const SkillPassportPage = () => {
   const { language } = useLanguage();
   const t = (en: string, bn: string) => (language === 'bn' ? bn : en);
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab: 'passports' | 'certificates' | 'timeline' =
-    (['passports','certificates','timeline'].includes(searchParams.get('tab') ?? '')
-      ? (searchParams.get('tab') as 'passports' | 'certificates' | 'timeline')
+  const activeTab: 'passports' | 'certificates' =
+    (['passports','certificates'].includes(searchParams.get('tab') ?? '')
+      ? (searchParams.get('tab') as 'passports' | 'certificates')
       : 'passports');
 
-  const setActiveTab = useCallback((tab: 'passports' | 'certificates' | 'timeline') => {
+  const setActiveTab = useCallback((tab: 'passports' | 'certificates') => {
     const next = new URLSearchParams(searchParams);
     if (tab === 'passports') next.delete('tab');
     else next.set('tab', tab);
@@ -56,8 +54,6 @@ export const SkillPassportPage = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [timelineEvents, setTimelineEvents] = useState<CareerTimelineEvent[]>([]);
-  const [timelineLoading, setTimelineLoading] = useState(false);
   const [publicProfileId, setPublicProfileId] = useState<string | null>(null);
   const [publicProfileCopied, setPublicProfileCopied] = useState(false);
 
@@ -83,41 +79,14 @@ export const SkillPassportPage = () => {
     }
   }, []);
 
-  const loadTimeline = useCallback(async () => {
-    const pid = await getMyProfileId().catch(() => null);
-    if (!pid) {
-      setTimelineEvents([]);
-      return;
-    }
-    setTimelineLoading(true);
-    try {
-      const events = await listMyCareerTimeline(pid);
-      setTimelineEvents(events);
-    } catch (err) {
-      console.warn('[SkillPassportPage] timeline load failed:', err);
-      setTimelineEvents([]);
-    } finally {
-      setTimelineLoading(false);
-    }
-  }, []);
-
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    if (activeTab === 'timeline') void loadTimeline();
-  }, [activeTab, loadTimeline]);
   useRealtimeRefresh(
     ['skill_passports', 'passport_renewal_history', 'passport_level_history',
      'skill_verification_submissions', 'roadmap_completion_requests',
      'roadmap_module_exams', 'roadmap_module_exam_submissions', 'roadmap_module_exam_attachments',
-     'course_certificates', 'certificate_action_history',
-     'career_timeline_events'],
+     'course_certificates', 'certificate_action_history'],
     load,
   );
-  useRealtimeRefresh(
-    ['career_timeline_events'],
-    loadTimeline,
-  );
-
   // Deduplicate by passport.id (Supabase realtime can deliver the same row
   // twice in quick succession when both INSERT and UPDATE fire on the same
   // record). Then sort by created_at DESC (latest first) — services already
@@ -170,10 +139,11 @@ export const SkillPassportPage = () => {
   // Total visible passports (count chip on the tab)
   const totalPassports = sortedPassports.length;
 
-  // The candidate's "primary" passport = most recent active Passport. Used
-  // for the certificate card QR codes so scanning a course certificate's
-  // QR lands on the candidate's full verified CV on /verify.
-  const primaryPassportNumber = useMemo(() => {
+  // The candidate's headline passport — falls back to the most recent
+  // active passport. Used for the certificate card QR codes so scanning
+  // a course certificate's QR lands on the candidate's verified CV on
+  // /verify.
+  const headlinePassportNumber = useMemo(() => {
     const live = sortedPassports.filter((p) => p.status === 'active' && !isPassportExpired(p));
     return (live[0] ?? sortedPassports[0])?.passport_number ?? null;
   }, [sortedPassports]);
@@ -245,14 +215,17 @@ export const SkillPassportPage = () => {
               Build a verified industry passport. Earn levels. Share with employers.
             </p>
           </div>
-          {activeTab === 'passports' && (
-            <button
-              onClick={() => setShowRequest(true)}
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-[#E31B23] to-[#F97316] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-red-500/25 hover:opacity-95 whitespace-nowrap"
-            >
-              <Plus size={16} /> Request Passport
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {activeTab === 'passports' && (
+              <button
+                onClick={() => setShowRequest(true)}
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-[#E31B23] to-[#F97316] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-red-500/25 hover:opacity-95 whitespace-nowrap"
+              >
+                <Plus size={16} /> Request Passport
+              </button>
+            )}
+            <SkillPassportUserManualButton />
+          </div>
         </div>
       </div>
 
@@ -282,19 +255,6 @@ export const SkillPassportPage = () => {
           <Award size={16} /> Course Certificates
           <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
             {certificates.length}
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab('timeline')}
-          className={`flex shrink-0 items-center gap-2 px-4 py-2 text-sm font-semibold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'timeline'
-              ? 'border-[#E31B23] text-slate-900'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Flag size={16} /> Career Timeline
-          <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-            {timelineEvents.length}
           </span>
         </button>
       </div>
@@ -345,7 +305,7 @@ export const SkillPassportPage = () => {
         <>
       {}
       <PassportSection
-        title={t('Active Passports', 'সক্রিয় পাসপোর্ট')}
+        title={t('Active Passports', 'সক্রিয় পা�পোর্ট')}
         titleTone="text-emerald-700"
         passports={active}
         profile={profile}
@@ -359,7 +319,7 @@ export const SkillPassportPage = () => {
       {}
       {expired.length > 0 && (
         <PassportSection
-          title={t('Expired', 'মেয়াদোত্তীর্ণ')}
+          title={t('Expired', 'মেয়াদোত্তীর্�')}
           titleTone="text-rose-700"
           tone="rose"
           passports={expired}
@@ -434,18 +394,11 @@ export const SkillPassportPage = () => {
         <CertificatesTab
           certificates={certificates}
           publicProfileId={publicProfileId}
-          ownerPassportNumber={primaryPassportNumber}
+          ownerPassportNumber={headlinePassportNumber}
         />
       )}
 
       {}
-      {activeTab === 'timeline' && (
-        <CareerTimelineTab
-          events={timelineEvents}
-          loading={timelineLoading}
-          onRefresh={loadTimeline}
-        />
-      )}
 
       {}
       {showRequest && (
@@ -719,7 +672,7 @@ function PassportCardRow({
         <PassportCard passport={passport} profile={profile} mode="full" />
       </div>
 
-      {/* Action row: View, Download (PDF), Renewal, Expiry, Share */}
+      {/* Action row: View, Renewal, Expiry, Share */}
       <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
         {showExpiry && (
           <ExpiryCountdown passport={passport} />
@@ -731,7 +684,7 @@ function PassportCardRow({
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#E31B23] to-[#F97316] px-3 py-1.5 text-xs font-bold text-white shadow hover:opacity-95"
         >
-          <ExternalLink size={12} /> {t('View Public Page', 'পাবলিক পেজ দেখুন')}
+          <ExternalLink size={12} /> {t('View Public Page', 'পাবলিক পে� দেখুন')}
         </Link>
 
         {showRenewalAction && passport.renewal_status !== 'requested' && (
@@ -879,53 +832,6 @@ function CertificateSection({
         </div>
       )}
     </section>
-  );
-}
-
-function CareerTimelineTab({
-  events,
-  loading,
-  onRefresh,
-}: {
-  events: CareerTimelineEvent[];
-  loading: boolean;
-  onRefresh: () => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Permanent Achievement Ledger
-          </p>
-          <p className="text-sm text-slate-700">
-            Every skill, roadmaps, assessment, certificate, passport, and
-            verification event — anchored to the SkillProof database with a
-            SHA-256 content hash. <strong>Admin edits never alter your
-            history.</strong>
-          </p>
-        </div>
-        <button
-          onClick={onRefresh}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          <RefreshCcw size={12} /> Refresh
-        </button>
-      </div>
-      {loading ? (
-        <div className="p-12 text-center text-sm text-slate-500">
-          <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-amber-500" />
-          Loading your career timeline…
-        </div>
-      ) : (
-        <CareerTimeline
-          events={events}
-          variant="user"
-          heading="Permanent Achievement Ledger"
-          emptyHint="Complete a roadmap or skill verification to start your timeline."
-        />
-      )}
-    </div>
   );
 }
 
@@ -1131,3 +1037,148 @@ function CategoryOption({
 }
 
 export default SkillPassportPage;
+
+
+// ============================================================================
+// Skill Passport — animated User Manual popover (Bangla instructions)
+// ============================================================================
+function SkillPassportUserManualButton() {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; placement: 'bottom' | 'top' }>({ top: 0, left: 0, placement: 'bottom' });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  const updatePosition = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const popW = 320;
+    const popH = popoverRef.current?.offsetHeight ?? 260;
+    const margin = 12;
+
+    let left = rect.right - popW;
+    if (left < margin) left = margin;
+    if (left + popW > window.innerWidth - margin) left = window.innerWidth - popW - margin;
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    let top = rect.bottom + margin;
+    let placement: 'bottom' | 'top' = 'bottom';
+    if (spaceBelow < popH + margin && rect.top - popH - margin > margin) {
+      top = rect.top - popH - margin;
+      placement = 'top';
+    }
+
+    setPos({ top, left, placement });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (buttonRef.current && buttonRef.current.contains(target)) return;
+      if (popoverRef.current && popoverRef.current.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, updatePosition]);
+
+  return (
+    <>
+      <div className="shrink-0">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label="User manual"
+          aria-expanded={open}
+          className="group relative inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-bold text-[#E31B23] shadow-md ring-1 ring-slate-200 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/20 active:scale-95 sm:text-sm"
+        >
+          <span className="relative inline-flex h-5 w-5 items-center justify-center sm:h-6 sm:w-6">
+            <HelpCircle
+              size={16}
+              className="transition-all duration-500 group-hover:rotate-12 group-hover:scale-110 sm:hidden"
+            />
+            <HelpCircle
+              size={18}
+              className="hidden transition-all duration-500 group-hover:rotate-12 group-hover:scale-110 sm:block"
+            />
+            <span className="absolute -top-0.5 -right-0.5 inline-flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-500" />
+            </span>
+          </span>
+          <span className="hidden sm:inline">User Manual</span>
+          <span className="inline sm:hidden">Manual</span>
+        </button>
+      </div>
+
+      {open && (
+        <div
+          ref={popoverRef}
+          role="dialog"
+          aria-label="ব্যবহার নির্দেশিকা"
+          style={{ top: pos.top, left: pos.left }}
+          className="fixed z-[100] w-[min(20rem,calc(100vw-1.5rem))] animate-[fadeSlideIn_0.25s_ease-out] rounded-2xl border border-orange-200 bg-white/95 p-4 text-slate-800 shadow-2xl shadow-orange-900/20 backdrop-blur sm:w-80"
+        >
+          <span
+            className={`absolute h-3 w-3 rotate-45 border-l border-t border-orange-200 bg-white/95 ${
+              pos.placement === 'bottom' ? '-top-2 right-6' : '-bottom-2 right-6 border-b border-r border-l-0 border-t-0'
+            }`}
+          />
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#E31B23] to-[#F97316] text-white shadow">
+                <HelpCircle size={14} />
+              </span>
+              <h3 className="text-sm font-bold text-slate-900">User Manual</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+              className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <ol className="space-y-2 text-xs leading-relaxed text-slate-700">
+            <li className="flex gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">১</span>
+              <span>যেকোনো একটি <span className="font-semibold text-slate-900">ক্যাটাগরির উপরে ৫টি টাস্ক</span> সম্পন্ন (কমপ্লিট) করুন।</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">২</span>
+              <span>এবার <span className="font-bold text-[#E31B23]">Skill Passport</span>-এ ক্লিক করুন।</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">৩</span>
+              <span>আপনার পছন্দমতো <span className="font-semibold text-slate-900">ক্যাটাগরি</span> সিলেক্ট করুন এবং একটি ছোট <span className="font-semibold text-slate-900">Motivation</span> লিখে <span className="font-bold text-emerald-600">Submit Request</span> করুন।</span>
+            </li>
+          </ol>
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] leading-relaxed text-amber-800">
+            <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">⏱</span>
+            <span><span className="font-bold">⏳ সময়সীমা:</span> আবেদন দেওয়ার পর <span className="font-bold">২৪ ঘণ্টা থেকে ৭ দিনের</span> মধ্যে আপনার পাসপোর্ট রেডি হয়ে যাবে।</span>
+          </div>
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-[11px] leading-relaxed text-emerald-800">
+            <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">★</span>
+            <span><span className="font-bold">Course Certificate:</span> কোনো <span className="font-semibold">Roadmap সম্পন্ন</span> করলে <span className="font-bold">অটো ২৪ ঘণ্টা থেকে ৭ দিনের</span> মধ্যে কোর্স সার্টিফিকেট পাবেন।</span>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

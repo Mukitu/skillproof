@@ -22,6 +22,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { Navbar } from '../../components/layout/Navbar';
+import { SEOHead } from '../../components/public/SEOHead';
 import { Footer } from '../../components/layout/Footer';
 import { SkillProofLogo } from '../../components/brand';
 import type { NormalizedAuthError } from '../../services/authErrors';
@@ -73,6 +74,13 @@ export const RegisterPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FFF8F6] text-slate-900 flex flex-col font-sans">
+      <SEOHead
+        pageKey="register"
+        path="/register"
+        title="Register | SkillProof"
+        description="Create your SkillProof account. Build a verified Skill Passport and start your career journey."
+        robots="noindex,nofollow"
+      />
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center py-10 sm:py-12 px-4">
